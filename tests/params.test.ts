@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   buildQueryString,
+  ensureContinueParam,
   findContinueValue,
   mergeForwardedParams,
   resolveParameters,
@@ -113,5 +114,41 @@ describe('mergeForwardedParams', () => {
 
   it('URL đích hỏng thì trả nguyên chuỗi, không ném lỗi', () => {
     expect(mergeForwardedParams('không-phải-url', { utm_source: 'email' })).toBe('không-phải-url')
+  })
+})
+
+describe('ensureContinueParam', () => {
+  // Lý do tồn tại: người dùng chỉ nói "tạo link tới trang này", agent gọi tool
+  // với đúng hai tham số bắt buộc. Không tự thêm continue thì link đó mất luôn
+  // nhánh dự phòng — mà lưới an toàn chạy tuỳ lúc thì không phải lưới an toàn.
+  it('tự thêm continue khi người gọi không truyền', () => {
+    expect(ensureContinueParam([], 'https://projecta.com')).toEqual([
+      { key: 'continue', value: 'https://projecta.com' },
+    ])
+  })
+
+  it('giữ nguyên thứ tự và thêm continue vào cuối', () => {
+    expect(
+      ensureContinueParam([{ key: 'utm_source', value: 'email' }], 'https://projecta.com'),
+    ).toEqual([
+      { key: 'utm_source', value: 'email' },
+      { key: 'continue', value: 'https://projecta.com' },
+    ])
+  })
+
+  it('tôn trọng continue mà người gọi truyền tường minh', () => {
+    const given = [{ key: 'continue', value: 'https://khac.com' }]
+    expect(ensureContinueParam(given, 'https://projecta.com')).toEqual(given)
+  })
+
+  it('không sửa mảng gốc', () => {
+    const original = [{ key: 'utm_source', value: 'email' }]
+    ensureContinueParam(original, 'https://projecta.com')
+    expect(original).toHaveLength(1)
+  })
+
+  it('link tối giản vẫn ký được vì luôn có continue', () => {
+    const params = ensureContinueParam([], 'https://projecta.com?code=abcxyz')
+    expect(findContinueValue(params)).toBe('https://projecta.com?code=abcxyz')
   })
 })

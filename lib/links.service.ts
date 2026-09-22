@@ -6,6 +6,7 @@ import { linkVisits, links, type LinkRow } from './db/schema'
 import { detectBot } from './bot'
 import {
   buildQueryString,
+  ensureContinueParam,
   findContinueValue,
   resolveParameters,
   type LinkParameter,
@@ -82,6 +83,18 @@ export async function createLink(
   const timeWait = input.time_wait ?? cfg.defaultTimeWait
   const forwardParams = input.forward_params ?? false
 
+  // Alias có thể đổi giữa các lần thử, mà `{{alias}}` là placeholder hợp lệ,
+  // nên tham số phải dựng lại theo từng ứng viên.
+  const buildParameters = (alias: string): LinkParameter[] =>
+    ensureContinueParam(
+      resolveParameters(input.parameters ?? [], {
+        destination_url: destinationUrl,
+        alias,
+        title: input.title,
+      }),
+      destinationUrl,
+    )
+
   // 3. Chèn, đụng alias thì thử hậu tố tiếp theo.
   //    Agent chỉ định alias tường minh mà trùng thì báo lỗi thay vì đổi ngầm —
   //    đổi ngầm sẽ khiến agent gắn nhầm link vào email.
@@ -92,11 +105,7 @@ export async function createLink(
   for (let attempt = 0; attempt < MAX_ALIAS_ATTEMPTS; attempt++) {
     const candidate = explicitAlias ? base : aliasCandidate(base, attempt)
 
-    const resolvedParameters: LinkParameter[] = resolveParameters(input.parameters ?? [], {
-      destination_url: destinationUrl,
-      alias: candidate,
-      title: input.title,
-    })
+    const resolvedParameters = buildParameters(candidate)
 
     try {
       const rows = await db
@@ -131,11 +140,7 @@ export async function createLink(
   // Hết lượt thử: rơi về alias ngẫu nhiên, gần như chắc chắn không đụng.
   if (!inserted) {
     const candidate = randomAlias(base.slice(0, 40) || 'link')
-    const resolvedParameters = resolveParameters(input.parameters ?? [], {
-      destination_url: destinationUrl,
-      alias: candidate,
-      title: input.title,
-    })
+    const resolvedParameters = buildParameters(candidate)
 
     try {
       const rows = await db
@@ -165,11 +170,7 @@ export async function createLink(
   }
 
   // 4. Ký và dựng URL trả về.
-  const finalParameters = resolveParameters(input.parameters ?? [], {
-    destination_url: destinationUrl,
-    alias: inserted.alias,
-    title: input.title,
-  })
+  const finalParameters = buildParameters(inserted.alias)
 
   const continueValue = findContinueValue(finalParameters)
   const expires = expiresAt(cfg.signatureTtl)

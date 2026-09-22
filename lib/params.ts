@@ -52,6 +52,24 @@ export function findContinueValue(params: readonly LinkParameter[]): string {
 }
 
 /**
+ * Bảo đảm URL luôn mang tham số `continue`.
+ *
+ * `continue` là thứ nuôi nhánh dự phòng: khi tra alias không ra, trang bọc kiểm
+ * chữ ký rồi chuyển thẳng người dùng tới giá trị này. Nếu để người gọi tự nhớ
+ * truyền vào thì lưới an toàn chỉ hoạt động cho những link mà họ nhớ — mà một
+ * lưới an toàn hoạt động tuỳ lúc thì không phải lưới an toàn.
+ *
+ * Người gọi truyền `continue` tường minh thì tôn trọng giá trị của họ.
+ */
+export function ensureContinueParam(
+  params: readonly LinkParameter[],
+  destinationUrl: string,
+): LinkParameter[] {
+  if (params.some((p) => p.key === 'continue')) return [...params]
+  return [...params, { key: 'continue', value: destinationUrl }]
+}
+
+/**
  * Ghép query `utm_*` của trang bọc vào URL đích.
  * Chỉ dùng khi link bật `forward_params`. Tham số nội bộ của hệ thống
  * (expires, signature, continue) không bao giờ được chuyển tiếp.
