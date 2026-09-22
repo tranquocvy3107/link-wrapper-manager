@@ -143,7 +143,17 @@ Tool này sửa được `title`, `desc`, `destination_url`, `time_wait`, `forwa
 
 Cảnh báo nằm trong mô tả tool: đổi `destination_url` chỉ đổi luồng chính. Các URL đã gửi mang sẵn tham số `continue` trỏ tới đích cũ kèm chữ ký của nó, nên nhánh dự phòng của những email đó vẫn dẫn về đích cũ.
 
-### 3.13. Tự viết lớp JSON-RPC cho MCP thay vì dùng SDK
+### 3.13. Tham số `continue` tự thêm, không bắt người gọi nhớ
+
+Spec để `continue` nằm trong mảng `parameters` do agent truyền vào. Thực tế thì khi người dùng chỉ nói *"tạo link tới trang này"*, agent gọi tool với đúng hai tham số bắt buộc — link sinh ra không có `continue`, tức là mất luôn nhánh dự phòng ở mục 3.4.
+
+Một lưới an toàn chỉ hoạt động khi người gọi nhớ yêu cầu thì không phải lưới an toàn.
+
+Chốt: `createLink` luôn gắn `continue = destination_url` nếu người gọi không truyền. Truyền tường minh thì tôn trọng giá trị của họ. Nằm ở `ensureContinueParam()` trong [lib/params.ts](lib/params.ts).
+
+**Kiểm chứng:** tạo link chỉ với `destination_url` + `title` → tắt link → bấm lại đúng URL đó → `307` về đúng đích. Trước khi sửa thì ra `404`.
+
+### 3.14. Tự viết lớp JSON-RPC cho MCP thay vì dùng SDK
 
 Route handler của Next.js App Router làm việc với `Request`/`Response` chuẩn web, còn `StreamableHTTPServerTransport` của MCP SDK nhắm vào `req`/`res` của Node — phải viết lớp chuyển đổi ở giữa.
 
@@ -212,6 +222,9 @@ Mong đợi `{"status":"ok","database":"up"}`. Nếu ra `503` thì `DATABASE_URL
 | Chữ ký hết hạn | HTTP 404 |
 | Chữ ký sửa 1 ký tự | HTTP 404 |
 | Đếm click | 4 lượt mở → 3 bot (curl, GoogleImageProxy, prefetch) + **1 click thật** |
+| Link tối giản (chỉ url + title) | Tự có `continue`, nhánh dự phòng `307` về đúng đích |
+| Sửa link qua `update_redirect_url` | Đổi `time_wait`, `status` đều ăn ngay |
+| Link đã tắt | Trang bọc trả `404`, số liệu cũ vẫn giữ |
 
 ### Bẫy khi test trên Windows
 
