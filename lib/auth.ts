@@ -7,26 +7,45 @@ import { getConfig } from './config'
  * Spec gốc không nói tới xác thực, nhưng để endpoint tạo link mở nghĩa là bất
  * kỳ ai cũng dựng được link chuyển hướng mang tên miền của dự án — đúng thứ kẻ
  * lừa đảo cần. Domain mất uy tín và có thể bị Google gắn cờ.
+ *
+ * Hỗ trợ nhiều token, mỗi bên dùng một token riêng. Thu hồi được từng cái mà
+ * không ảnh hưởng bên khác, và nhãn của token được ghi vào cột `created_by`
+ * nên tra được link nào do bên nào tạo.
  */
-export function checkBearer(headers: Headers): boolean {
-  const expected = getConfig().mcpApiToken
 
-  const raw = headers.get('authorization') ?? ''
-  const match = raw.match(/^Bearer\s+(.+)$/i)
-  if (!match) return false
-
-  const provided = match[1]!.trim()
-
-  const a = Buffer.from(expected, 'utf8')
-  const b = Buffer.from(provided, 'utf8')
-  if (a.length !== b.length) return false
-  return timingSafeEqual(a, b)
+function constantTimeEquals(a: string, b: string): boolean {
+  const bufA = Buffer.from(a, 'utf8')
+  const bufB = Buffer.from(b, 'utf8')
+  // timingSafeEqual ném lỗi khi khác độ dài — mà khác độ dài thì chắc chắn sai rồi.
+  if (bufA.length !== bufB.length) return false
+  return timingSafeEqual(bufA, bufB)
 }
 
-/** Nhãn ngắn để ghi vào cột `created_by`, không lộ token. */
-export function tokenLabel(headers: Headers): string {
+function extractToken(headers: Headers): string | null {
   const raw = headers.get('authorization') ?? ''
   const match = raw.match(/^Bearer\s+(.+)$/i)
-  if (!match) return 'unknown'
-  return `mcp:${match[1]!.trim().slice(0, 6)}`
+  return match ? match[1]!.trim() : null
+}
+
+/**
+ * Trả về nhãn của token khớp, hoặc null nếu không hợp lệ.
+ *
+ * Luôn duyệt hết danh sách thay vì thoát sớm, để thời gian phản hồi không tiết
+ * lộ token nằm ở vị trí nào.
+ */
+export function authenticate(headers: Headers): string | null {
+  const provided = extractToken(headers)
+  if (!provided) return null
+
+  let matched: string | null = null
+  for (const client of getConfig().apiClients) {
+    if (constantTimeEquals(client.token, provided)) matched = client.label
+  }
+
+  return matched
+}
+
+/** Tiện ích cho chỗ chỉ cần biết hợp lệ hay không. */
+export function checkBearer(headers: Headers): boolean {
+  return authenticate(headers) !== null
 }

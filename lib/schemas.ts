@@ -41,8 +41,31 @@ export const getRedirectDataInput = z.object({
   include_stats: z.boolean().optional(),
 }).strict()
 
+/** Sửa link đã tạo. `alias` bắt buộc, các trường còn lại tuỳ chọn. */
+export const updateRedirectUrlInput = z
+  .object({
+    alias: z.string().min(1, 'alias là bắt buộc').max(64),
+    destination_url: z.string().min(1).max(4096).optional(),
+    title: z.string().min(1).max(200).optional(),
+    desc: z.string().max(500).nullable().optional(),
+    time_wait: z
+      .number()
+      .int('time_wait phải là số nguyên')
+      .min(0)
+      .max(MAX_TIME_WAIT, `time_wait tối đa ${MAX_TIME_WAIT}ms`)
+      .optional(),
+    forward_params: z.boolean().optional(),
+    status: z.enum(['active', 'disabled']).optional(),
+  })
+  .strict()
+  .refine(
+    (v) => Object.keys(v).some((k) => k !== 'alias'),
+    'Phải truyền ít nhất một trường để sửa, ngoài alias',
+  )
+
 export type GenerateRedirectUrlInput = z.infer<typeof generateRedirectUrlInput>
 export type GetRedirectDataInput = z.infer<typeof getRedirectDataInput>
+export type UpdateRedirectUrlInput = z.infer<typeof updateRedirectUrlInput>
 
 /**
  * JSON Schema công bố qua `tools/list` của MCP.
@@ -125,6 +148,46 @@ export const GET_REDIRECT_DATA_JSON_SCHEMA = {
       type: 'boolean',
       default: false,
       description: 'Có trả kèm thống kê lượt xem và click thật hay không.',
+    },
+  },
+  required: ['alias'],
+  additionalProperties: false,
+} as const
+
+export const UPDATE_REDIRECT_URL_JSON_SCHEMA = {
+  type: 'object',
+  properties: {
+    alias: {
+      type: 'string',
+      maxLength: 64,
+      description: 'Alias của link cần sửa. Bản thân alias không đổi được.',
+    },
+    destination_url: {
+      type: 'string',
+      description:
+        'URL đích mới. Lưu ý: email đã gửi mang sẵn tham số continue trỏ tới đích cũ, nhánh dự phòng của những email đó vẫn dẫn về đích cũ.',
+    },
+    title: { type: 'string', maxLength: 200, description: 'Tiêu đề mới.' },
+    desc: {
+      type: ['string', 'null'],
+      maxLength: 500,
+      description: 'Mô tả mới. Truyền null để xoá mô tả.',
+    },
+    time_wait: {
+      type: 'integer',
+      minimum: 0,
+      maximum: MAX_TIME_WAIT,
+      description: 'Thời gian chờ mới, tính bằng mili giây.',
+    },
+    forward_params: {
+      type: 'boolean',
+      description: 'Bật/tắt việc mang tham số utm_* sang URL đích.',
+    },
+    status: {
+      type: 'string',
+      enum: ['active', 'disabled'],
+      description:
+        'Đặt "disabled" để tắt link: trang bọc sẽ trả 404, nhưng số liệu cũ vẫn giữ nguyên.',
     },
   },
   required: ['alias'],

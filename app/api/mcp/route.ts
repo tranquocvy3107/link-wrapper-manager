@@ -1,4 +1,4 @@
-import { checkBearer, tokenLabel } from '@/lib/auth'
+import { authenticate } from '@/lib/auth'
 import { JSON_RPC_ERRORS, dispatch } from '@/lib/mcp/jsonrpc'
 
 export const runtime = 'nodejs'
@@ -24,7 +24,9 @@ function unauthorized() {
 }
 
 export async function POST(request: Request) {
-  if (!checkBearer(request.headers)) return unauthorized()
+  // Nhãn của token gọi vào — ghi lại để biết link nào do bên nào tạo.
+  const client = authenticate(request.headers)
+  if (client === null) return unauthorized()
 
   let payload: unknown
   try {
@@ -41,7 +43,7 @@ export async function POST(request: Request) {
   }
 
   const { body, status } = await dispatch(payload, {
-    createdBy: tokenLabel(request.headers),
+    createdBy: client,
     headers: request.headers,
   })
 

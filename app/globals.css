@@ -1,29 +1,33 @@
 @import "tailwindcss";
 
+/*
+  Giao diện cố định nền trắng.
+
+  Trước đây trang tự đổi sang nền tối theo prefers-color-scheme của máy người
+  dùng. Bỏ hẳn: đây là trang chuyển tiếp chỉ hiện vài giây, nền trắng thống nhất
+  cho mọi người nhận thì dễ đoán hơn — và khớp với phần lớn email template.
+
+  `color-scheme: light` để trình duyệt không tự bôi tối các thành phần gốc
+  (thanh cuộn, nút) khi máy đang bật dark mode.
+*/
 @theme {
   --color-surface: #ffffff;
   --color-ink: #0f172a;
   --color-muted: #64748b;
-  --color-line: #e2e8f0;
+  --color-line: #e5e7eb;
   --color-accent: #2563eb;
 }
 
 :root {
-  color-scheme: light dark;
+  color-scheme: light;
 }
 
-@media (prefers-color-scheme: dark) {
-  @theme {
-    --color-surface: #0b1120;
-    --color-ink: #e2e8f0;
-    --color-muted: #94a3b8;
-    --color-line: #1e293b;
-    --color-accent: #60a5fa;
-  }
+html {
+  background: #ffffff;
 }
 
 body {
-  background: var(--color-surface);
-  color: var(--color-ink);
+  background: #ffffff;
+  color: #0f172a;
   -webkit-font-smoothing: antialiased;
 }

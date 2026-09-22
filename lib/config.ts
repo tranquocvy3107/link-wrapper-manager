@@ -15,7 +15,14 @@ const envSchema = z.object({
     .string()
     .min(32, 'LINK_SIGNING_SECRET phải dài ít nhất 32 ký tự (dùng: openssl rand -hex 32)'),
   IP_SALT: z.string().min(16, 'IP_SALT phải dài ít nhất 16 ký tự'),
-  MCP_API_TOKEN: z.string().min(16, 'MCP_API_TOKEN phải dài ít nhất 16 ký tự'),
+
+  // Hai cách khai báo token, dùng cái nào cũng được (khai cả hai thì gộp lại):
+  //   MCP_API_TOKEN  = <token>                    — một token duy nhất, nhãn "default"
+  //   MCP_API_TOKENS = nhãn:token,nhãn:token      — mỗi bên dùng một token riêng
+  // Nhiều token để thu hồi được từng cái mà không ảnh hưởng bên khác, và nhãn
+  // được ghi vào cột created_by nên tra được link nào do ai tạo.
+  MCP_API_TOKEN: z.string().default(''),
+  MCP_API_TOKENS: z.string().default(''),
 
   PUBLIC_BASE_URL: z.string().min(1, 'PUBLIC_BASE_URL là bắt buộc'),
   SIGNATURE_TTL: z.string().default('2592000'),
@@ -25,12 +32,19 @@ const envSchema = z.object({
   ALLOWED_DESTINATION_HOSTS: z.string().default(''),
 })
 
+export interface ApiClient {
+  /** Nhãn ghi vào cột `created_by`, ví dụ "marketing". */
+  label: string
+  token: string
+}
+
 export interface AppConfig {
   databaseUrl: string
   databaseSsl: boolean
   linkSigningSecret: string
   ipSalt: string
-  mcpApiToken: string
+  /** Luôn có ít nhất một phần tử. */
+  apiClients: ApiClient[]
   /** Không có dấu `/` ở cuối. */
   publicBaseUrl: string
   /** Giây. */
@@ -55,6 +69,53 @@ function toPositiveInt(raw: string, fallback: number, field: string): number {
   return Number.isFinite(n) ? n : fallback
 }
 
+const MIN_TOKEN_LENGTH = 16
+
+/**
+ * Gộp `MCP_API_TOKEN` và `MCP_API_TOKENS` thành một danh sách.
+ *
+ * Mỗi mục trong `MCP_API_TOKENS` có dạng `nhãn:token`. Token có thể chứa dấu
+ * hai chấm nên chỉ tách ở dấu đầu tiên. Mục không có dấu hai chấm được coi là
+ * token trần, nhãn `default`.
+ */
+export function parseApiClients(single: string, multi: string): ApiClient[] {
+  const clients: ApiClient[] = []
+  const seen = new Set<string>()
+
+  const add = (label: string, token: string) => {
+    const t = token.trim()
+    if (!t || seen.has(t)) return
+    seen.add(t)
+    clients.push({ label: label.trim() || 'default', token: t })
+  }
+
+  for (const entry of multi.split(',')) {
+    const raw = entry.trim()
+    if (!raw) continue
+
+    const sep = raw.indexOf(':')
+    if (sep === -1) add('default', raw)
+    else add(raw.slice(0, sep), raw.slice(sep + 1))
+  }
+
+  add('default', single)
+
+  const tooShort = clients.filter((c) => c.token.length < MIN_TOKEN_LENGTH)
+  if (tooShort.length > 0) {
+    throw new Error(
+      `Token quá ngắn (tối thiểu ${MIN_TOKEN_LENGTH} ký tự): ${tooShort.map((c) => c.label).join(', ')}`,
+    )
+  }
+
+  if (clients.length === 0) {
+    throw new Error(
+      'Phải khai báo ít nhất một token cho /api/mcp qua MCP_API_TOKEN hoặc MCP_API_TOKENS.',
+    )
+  }
+
+  return clients
+}
+
 let cached: AppConfig | null = null
 
 export function getConfig(): AppConfig {
@@ -75,7 +136,7 @@ export function getConfig(): AppConfig {
     databaseSsl: toBool(env.DATABASE_SSL),
     linkSigningSecret: env.LINK_SIGNING_SECRET,
     ipSalt: env.IP_SALT,
-    mcpApiToken: env.MCP_API_TOKEN,
+    apiClients: parseApiClients(env.MCP_API_TOKEN, env.MCP_API_TOKENS),
     publicBaseUrl: env.PUBLIC_BASE_URL.replace(/\/+$/, ''),
     signatureTtl: toPositiveInt(env.SIGNATURE_TTL, 2_592_000, 'SIGNATURE_TTL'),
     defaultTimeWait: toPositiveInt(env.DEFAULT_TIME_WAIT, 3000, 'DEFAULT_TIME_WAIT'),

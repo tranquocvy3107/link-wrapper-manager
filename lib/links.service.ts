@@ -211,6 +211,66 @@ export async function getLinkByAlias(alias: string): Promise<LinkRow | null> {
 }
 
 // ---------------------------------------------------------------------------
+// Sửa link đã tạo
+// ---------------------------------------------------------------------------
+
+export interface UpdateLinkInput {
+  alias: string
+  destination_url?: string
+  title?: string
+  desc?: string | null
+  time_wait?: number
+  forward_params?: boolean
+  status?: 'active' | 'disabled'
+}
+
+/**
+ * Sửa một link đã tồn tại. Trả về null nếu không có alias đó.
+ *
+ * Lưu ý về `destination_url`: các URL đã gửi đi trong email mang sẵn tham số
+ * `continue` trỏ tới đích CŨ và chữ ký của nó. Đổi đích ở đây chỉ đổi luồng
+ * chính (tra alias trong database); nhánh dự phòng của những email đã gửi vẫn
+ * dẫn về đích cũ. Không tự sửa được vì email đã nằm trong hộp thư người nhận.
+ */
+export async function updateLink(input: UpdateLinkInput): Promise<LinkRow | null> {
+  const cfg = getConfig()
+  const db = getDb()
+
+  const patch: Partial<typeof links.$inferInsert> = {}
+
+  if (input.destination_url !== undefined) {
+    const check = checkUrl(input.destination_url, { allowedHosts: cfg.allowedDestinationHosts })
+    if (!check.ok) {
+      throw new ServiceError(
+        `destination_url không hợp lệ (${check.reason}). Chỉ chấp nhận http/https trỏ tới host công khai.`,
+        `invalid_destination_url:${check.reason}`,
+      )
+    }
+    patch.destinationUrl = input.destination_url.trim()
+  }
+
+  if (input.title !== undefined) patch.title = input.title
+  if (input.desc !== undefined) patch.description = input.desc
+  if (input.time_wait !== undefined) patch.timeWait = input.time_wait
+  if (input.forward_params !== undefined) patch.forwardParams = input.forward_params
+  if (input.status !== undefined) patch.status = input.status
+
+  if (Object.keys(patch).length === 0) {
+    throw new ServiceError('Không có trường nào để sửa.', 'nothing_to_update')
+  }
+
+  patch.updatedAt = new Date()
+
+  const rows = await db
+    .update(links)
+    .set(patch)
+    .where(eq(links.alias, input.alias))
+    .returning()
+
+  return rows[0] ?? null
+}
+
+// ---------------------------------------------------------------------------
 // Ghi nhận truy cập
 // ---------------------------------------------------------------------------
 

@@ -47,6 +47,9 @@ services:
         generateValue: true
       - key: MCP_API_TOKEN
         generateValue: true
+      # Nhiều phòng ban thì điền tay ở đây: nhan:token,nhan:token
+      - key: MCP_API_TOKENS
+        sync: false
       # Điền sau khi biết URL thật của service.
       - key: PUBLIC_BASE_URL
         sync: false

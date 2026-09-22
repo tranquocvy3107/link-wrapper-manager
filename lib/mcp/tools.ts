@@ -1,8 +1,10 @@
 import {
   GENERATE_REDIRECT_URL_JSON_SCHEMA,
   GET_REDIRECT_DATA_JSON_SCHEMA,
+  UPDATE_REDIRECT_URL_JSON_SCHEMA,
   generateRedirectUrlInput,
   getRedirectDataInput,
+  updateRedirectUrlInput,
 } from '../schemas'
 import {
   ServiceError,
@@ -10,6 +12,7 @@ import {
   getLinkByAlias,
   getStats,
   recordVisit,
+  updateLink,
 } from '../links.service'
 
 export interface ToolDescriptor {
@@ -35,6 +38,14 @@ export const TOOLS: ToolDescriptor[] = [
       'Đọc cấu hình của một link theo alias, kèm tuỳ chọn thống kê lượt xem và click thật. ' +
       'Mặc định KHÔNG ghi nhận lượt truy cập, để tra cứu không làm sai lệch số liệu.',
     inputSchema: GET_REDIRECT_DATA_JSON_SCHEMA,
+  },
+  {
+    name: 'update_redirect_url',
+    title: 'Sửa link đã tạo',
+    description:
+      'Sửa cấu hình của một link đã tồn tại: tiêu đề, mô tả, URL đích, thời gian chờ, ' +
+      'hoặc tắt link. Alias không đổi được, nên mọi URL đã gửi trong email vẫn dùng tiếp.',
+    inputSchema: UPDATE_REDIRECT_URL_JSON_SCHEMA,
   },
 ]
 
@@ -69,6 +80,8 @@ export async function callTool(
       return handleGenerate(rawArgs, ctx)
     case 'get_redirect_data':
       return handleGetData(rawArgs, ctx)
+    case 'update_redirect_url':
+      return handleUpdate(rawArgs)
     default:
       return fail(`Không có tool tên "${name}"`, 'unknown_tool')
   }
@@ -134,4 +147,34 @@ async function handleGetData(rawArgs: unknown, ctx: ToolCallContext): Promise<To
   }
 
   return ok(payload)
+}
+
+async function handleUpdate(rawArgs: unknown): Promise<ToolResult> {
+  const parsed = updateRedirectUrlInput.safeParse(rawArgs ?? {})
+  if (!parsed.success) {
+    const details = parsed.error.issues.map((i) => `${i.path.join('.') || '(gốc)'}: ${i.message}`)
+    return fail(`Tham số không hợp lệ:\n${details.join('\n')}`, 'invalid_params')
+  }
+
+  try {
+    const link = await updateLink(parsed.data)
+    if (!link) {
+      return fail(`Không tìm thấy link có alias "${parsed.data.alias}".`, 'not_found')
+    }
+
+    return ok({
+      updated: true,
+      alias: link.alias,
+      destination_url: link.destinationUrl,
+      title: link.title,
+      desc: link.description,
+      time_wait: link.timeWait,
+      forward_params: link.forwardParams,
+      status: link.status,
+      updated_at: link.updatedAt.toISOString(),
+    })
+  } catch (err) {
+    if (err instanceof ServiceError) return fail(err.message, err.code)
+    throw err
+  }
 }
