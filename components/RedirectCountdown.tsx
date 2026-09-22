@@ -18,13 +18,14 @@ interface Props {
 const RADIUS = 54
 const CIRCUMFERENCE = 2 * Math.PI * RADIUS
 
-function track(event: string, destinationUrl: string) {
-  try {
-    window.gtag?.('event', event, { destination_url: destinationUrl })
-  } catch {
-    // GA4 chưa cắm hoặc bị chặn — không phải lý do để chặn chuyển hướng.
-  }
-}
+/**
+ * Hạn chót chờ GA4 xác nhận đã gửi xong, tính bằng ms.
+ *
+ * Thực tế GA4 gọi lại sau khoảng 50–150ms. Con số này chỉ là lưới chặn cho
+ * trường hợp GA4 bị chặn hoặc treo — hết thời gian là chuyển hướng bất kể.
+ * Người dùng KHÔNG bao giờ được phép kẹt lại vì chuyện đo đạc.
+ */
+const GA4_TIMEOUT_MS = 400
 
 export default function RedirectCountdown({ destinationUrl, timeWaitMs, visitToken }: Props) {
   const total = Math.max(0, timeWaitMs)
@@ -33,14 +34,12 @@ export default function RedirectCountdown({ destinationUrl, timeWaitMs, visitTok
   const firedRef = useRef(false)
 
   const redirect = useCallback(
-    (event: 'auto_redirect' | 'manual_redirect') => {
+    (eventName: 'auto_redirect' | 'manual_redirect') => {
       if (firedRef.current) return
       firedRef.current = true
 
-      track(event, destinationUrl)
-
       // Báo cho server biết đây là trình duyệt thật, không phải bộ quét email.
-      // sendBeacon sống sót qua lúc trang bị unload, fetch thì không chắc.
+      // sendBeacon được trình duyệt cam kết gửi xong dù trang đang đóng.
       try {
         if (visitToken) navigator.sendBeacon?.('/api/track', visitToken)
       } catch {
@@ -49,7 +48,39 @@ export default function RedirectCountdown({ destinationUrl, timeWaitMs, visitTok
 
       // replace chứ không assign: nút Back của trình duyệt sẽ không quay lại
       // trang bọc rồi chuyển hướng lần nữa.
-      window.location.replace(destinationUrl)
+      const go = () => window.location.replace(destinationUrl)
+
+      const gtag = window.gtag
+      if (typeof gtag !== 'function') {
+        go()
+        return
+      }
+
+      // GA4 gửi sự kiện bằng fetch, mà fetch bị huỷ khi trang chuyển đi — bắn
+      // rồi chuyển ngay thì sự kiện phần lớn không tới nơi. `event_callback` là
+      // cách Google khuyến nghị cho đúng tình huống này: chờ GA4 báo đã gửi
+      // xong rồi mới đi. Kèm hạn chót để không bao giờ kẹt.
+      let navigated = false
+      const goOnce = () => {
+        if (navigated) return
+        navigated = true
+        go()
+      }
+
+      const timer = setTimeout(goOnce, GA4_TIMEOUT_MS)
+
+      try {
+        gtag('event', eventName, {
+          destination_url: destinationUrl,
+          event_callback: () => {
+            clearTimeout(timer)
+            goOnce()
+          },
+        })
+      } catch {
+        clearTimeout(timer)
+        goOnce()
+      }
     },
     [destinationUrl, visitToken],
   )
@@ -61,13 +92,27 @@ export default function RedirectCountdown({ destinationUrl, timeWaitMs, visitTok
       return
     }
 
-    // requestAnimationFrame thay vì setInterval: vòng tròn chạy mượt, và thời
-    // gian tính từ mốc thật nên không trôi sai khi trình duyệt bóp tần suất tab nền.
-    const start = performance.now()
+    // Chỉ cộng dồn thời gian lúc tab đang HIỆN.
+    //
+    // requestAnimationFrame không chạy khi tab bị ẩn. Nếu tính theo giờ thực
+    // thì người dùng mở link ở tab nền, lúc quay lại sẽ thấy đếm ngược nhảy
+    // thẳng về 0 và chuyển hướng ngay — không kịp đọc mình đang đi đâu, tức là
+    // mất đúng mục đích của trang bọc. Mốc lại `last` mỗi lần tab hiện lên để
+    // quãng thời gian ẩn không bị tính vào.
+    let elapsed = 0
+    let last = performance.now()
     let frame = 0
 
+    const onVisibilityChange = () => {
+      last = performance.now()
+    }
+    document.addEventListener('visibilitychange', onVisibilityChange)
+
     const tick = (now: number) => {
-      const left = Math.max(0, total - (now - start))
+      elapsed += now - last
+      last = now
+
+      const left = Math.max(0, total - elapsed)
       setRemaining(left)
 
       if (left <= 0) {
@@ -79,7 +124,11 @@ export default function RedirectCountdown({ destinationUrl, timeWaitMs, visitTok
     }
 
     frame = requestAnimationFrame(tick)
-    return () => cancelAnimationFrame(frame)
+
+    return () => {
+      cancelAnimationFrame(frame)
+      document.removeEventListener('visibilitychange', onVisibilityChange)
+    }
   }, [total, redirect])
 
   const progress = total > 0 ? remaining / total : 0
