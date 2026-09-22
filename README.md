@@ -2,7 +2,7 @@
 
 Trang bọc trung gian cho link gắn trong email. Người nhận bấm link → thấy trang chờ đếm ngược → tự chuyển sang trang đích. Trong lúc chờ, hệ thống ghi nhận lượt truy cập.
 
-Hai công cụ MCP cho agent: `generate_redirect_url` và `get_redirect_data`.
+Ba công cụ MCP cho agent: `generate_redirect_url`, `get_redirect_data`, `update_redirect_url`.
 
 📖 [CONTEXT.md](CONTEXT.md) — vì sao dự án trông như thế này, đọc trước khi sửa code
 📋 [PLAN.md](PLAN.md) — kế hoạch kỹ thuật · [PLAN_sum.md](PLAN_sum.md) — bản tóm tắt
@@ -59,6 +59,24 @@ Kiểm tra bằng `/mcp` trong phiên Claude Code, hoặc:
 ```bash
 claude mcp list
 ```
+
+### Nhiều phòng ban
+
+Đừng phát cùng một token cho tất cả. Sinh cho mỗi bên một token riêng:
+
+```bash
+node -e "console.log(require('crypto').randomBytes(24).toString('hex'))"
+```
+
+Rồi khai vào biến `MCP_API_TOKENS` trên Render, dạng `nhãn:token`, phân tách bằng dấu phẩy:
+
+```
+MCP_API_TOKENS=marketing:a1b2...,sales:c3d4...,support:e5f6...
+```
+
+Lợi ích: thu hồi được token của một bên mà không ảnh hưởng bên khác (xoá mục đó rồi restart), và nhãn được ghi vào cột `created_by` nên tra được link nào do phòng nào tạo.
+
+Mỗi bên nhận token của mình và chạy lệnh `claude mcp add` ở trên với token đó.
 
 ### Claude Desktop / claude.ai
 

@@ -115,7 +115,31 @@ Mặc định tắt. Các tham số `utm_*` phục vụ GA4 trên chính trang b
 
 Người dùng chưa chốt dứt khoát nên làm thành cờ `forward_params` bật/tắt theo từng link — trả lời lúc nào cũng kịp, không phải sửa code.
 
-### 3.10. Tự viết lớp JSON-RPC cho MCP thay vì dùng SDK
+### 3.10. Nền trắng cố định, bỏ dark mode
+
+Ban đầu trang tự đổi màu theo `prefers-color-scheme` của máy người nhận. Bỏ hẳn.
+
+Đây là trang chuyển tiếp chỉ hiện vài giây. Nền trắng thống nhất cho mọi người thì dễ đoán hơn, và khớp với phần lớn email template — người nhận đang đọc email nền trắng, bấm link ra trang đen là giật mắt.
+
+`color-scheme: light` trong [app/globals.css](app/globals.css) để trình duyệt không tự bôi tối thanh cuộn và các thành phần gốc khi máy đang bật dark mode.
+
+### 3.11. Nhiều token, mỗi bên một cái
+
+Ban đầu chỉ có một `MCP_API_TOKEN`. Khi cần cho nhiều phòng ban dùng, một token chung có hai vấn đề: không thu hồi được riêng bên nào, và không biết link nào do ai tạo.
+
+Chốt: `MCP_API_TOKENS` dạng `nhãn:token,nhãn:token`. Nhãn được ghi vào cột `created_by`. `MCP_API_TOKEN` cũ vẫn chạy với nhãn `default` nên không phá cấu hình sẵn có.
+
+Xác thực duyệt hết danh sách thay vì thoát sớm khi khớp, để thời gian phản hồi không tiết lộ token nằm ở vị trí nào — xem [lib/auth.ts](lib/auth.ts).
+
+### 3.12. Thêm tool `update_redirect_url`
+
+Không có trong spec. Nhưng tạo link xong là không sửa được gì: đổi thời gian chờ, sửa tiêu đề sai chính tả, hay tắt một link đã lỡ gửi đều không làm được — chỉ còn cách tạo link mới với alias khác, mà email cũ thì đã gửi rồi.
+
+Tool này sửa được `title`, `desc`, `destination_url`, `time_wait`, `forward_params`, `status`. **Alias cố ý không sửa được** — alias nằm trong URL đã gửi đi, đổi là mọi email cũ chết.
+
+Cảnh báo nằm trong mô tả tool: đổi `destination_url` chỉ đổi luồng chính. Các URL đã gửi mang sẵn tham số `continue` trỏ tới đích cũ kèm chữ ký của nó, nên nhánh dự phòng của những email đó vẫn dẫn về đích cũ.
+
+### 3.13. Tự viết lớp JSON-RPC cho MCP thay vì dùng SDK
 
 Route handler của Next.js App Router làm việc với `Request`/`Response` chuẩn web, còn `StreamableHTTPServerTransport` của MCP SDK nhắm vào `req`/`res` của Node — phải viết lớp chuyển đổi ở giữa.
 
@@ -132,6 +156,7 @@ Nằm ở [lib/mcp/jsonrpc.ts](lib/mcp/jsonrpc.ts). Hỗ trợ `initialize`, `no
 - **Postgres của Render cần SSL khi kết nối từ ngoài.** Trong cùng region dùng Internal Database URL thì không cần. Biến `DATABASE_SSL` điều khiển việc này.
 - **Đừng đổi tên `GA4_ID` thành `NEXT_PUBLIC_GA4_ID`** — xem mục 3.8.
 - **`đ` tiếng Việt không tự phân rã bằng NFD.** Phải thay tay trong [lib/slug.ts](lib/slug.ts), nếu không `"Dự án"` ra `du-Đan` thay vì `du-an`.
+- **`git push` KHÔNG tự deploy.** Service bật `autoDeploy: yes`, nhưng repo được nối với Render bằng **URL công khai** chứ không qua GitHub App, nên Render không nhận được webhook từ GitHub. Phải bấm **Manual Deploy** trong dashboard (hoặc gọi API `trigger_deploy`). Muốn tự động thì vào Render kết nối tài khoản GitHub `tranquocvy3107`, rồi chọn lại repo cho service.
 - **Gói free của Render ngủ sau 15 phút không có traffic**, lần đánh thức đầu mất vài chục giây. Với link trong email thì lần bấm đầu tiên sau một thời gian dài sẽ chậm. Muốn tránh phải lên gói starter.
 
 ---
