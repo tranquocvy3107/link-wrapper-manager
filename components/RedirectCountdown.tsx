@@ -19,11 +19,12 @@ const RADIUS = 54
 const CIRCUMFERENCE = 2 * Math.PI * RADIUS
 
 /**
- * Hạn chót chờ GA4 xác nhận đã gửi xong, tính bằng ms.
+ * Hạn chót chờ GA4 phản hồi, tính bằng ms.
  *
- * Thực tế GA4 gọi lại sau khoảng 50–150ms. Con số này chỉ là lưới chặn cho
- * trường hợp GA4 bị chặn hoặc treo — hết thời gian là chuyển hướng bất kể.
- * Người dùng KHÔNG bao giờ được phép kẹt lại vì chuyện đo đạc.
+ * Đo thực tế trên bản chạy: `event_callback` gọi lại sau 4–15ms, nên độ trễ
+ * người dùng cảm nhận được gần như bằng không. Con số 400 chỉ là lưới chặn cho
+ * trường hợp GA4 bị chặn hoặc treo — hết giờ là chuyển hướng bất kể. Người dùng
+ * KHÔNG bao giờ được phép kẹt lại vì chuyện đo đạc.
  */
 const GA4_TIMEOUT_MS = 400
 
@@ -56,10 +57,17 @@ export default function RedirectCountdown({ destinationUrl, timeWaitMs, visitTok
         return
       }
 
-      // GA4 gửi sự kiện bằng fetch, mà fetch bị huỷ khi trang chuyển đi — bắn
-      // rồi chuyển ngay thì sự kiện phần lớn không tới nơi. `event_callback` là
-      // cách Google khuyến nghị cho đúng tình huống này: chờ GA4 báo đã gửi
-      // xong rồi mới đi. Kèm hạn chót để không bao giờ kẹt.
+      // Chờ GA4 phản hồi trước khi chuyển trang. Đây là cách Google khuyến nghị
+      // cho tình huống chuyển hướng ra ngoài.
+      //
+      // ĐỪNG hiểu nhầm `event_callback` là "đã gửi xong". Đo trên bản chạy thật:
+      // callback gọi lại sau 4–15ms, nhưng lệnh gửi mạng xuất hiện sau vài giây,
+      // và nhiều sự kiện bị gộp vào thân một request POST. Callback chỉ báo gtag
+      // đã nhận sự kiện vào hàng đợi.
+      //
+      // Thứ thật sự cứu dữ liệu là gtag tự xả hàng đợi bằng sendBeacon lúc trang
+      // đóng (nó tự gắn handler pagehide). Chờ callback chỉ là biên an toàn thêm,
+      // gần như miễn phí vì chỉ mất chục mili giây.
       let navigated = false
       const goOnce = () => {
         if (navigated) return

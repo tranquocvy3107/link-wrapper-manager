@@ -143,7 +143,29 @@ Tool này sửa được `title`, `desc`, `destination_url`, `time_wait`, `forwa
 
 Cảnh báo nằm trong mô tả tool: đổi `destination_url` chỉ đổi luồng chính. Các URL đã gửi mang sẵn tham số `continue` trỏ tới đích cũ kèm chữ ký của nó, nên nhánh dự phòng của những email đó vẫn dẫn về đích cũ.
 
-### 3.13. Tham số `continue` tự thêm, không bắt người gọi nhớ
+### 3.13. Đếm ngược chỉ chạy khi tab đang hiện
+
+`requestAnimationFrame` không chạy ở tab ẩn. Bản đầu tính thời gian theo giờ thực, nên người mở link ở tab nền (ctrl+click, hoặc chuyển app trên điện thoại) lúc quay lại sẽ thấy đếm ngược nhảy thẳng về 0 và chuyển hướng ngay — không kịp đọc mình đang đi đâu, tức là mất đúng mục đích của trang bọc.
+
+Chốt: chỉ cộng dồn thời gian lúc tab đang hiện, và mốc lại đồng hồ mỗi lần `visibilitychange`. Người dùng quay lại thì đếm ngược tiếp tục từ chỗ đang dở.
+
+### 3.14. Sự kiện GA4 khi chuyển trang — ba lần đo, hai lần sai
+
+Đo thực tế trên bản đang chạy, ghi lại để người sau khỏi lặp lại:
+
+| Giả thuyết | Kết quả đo |
+|---|---|
+| `transport_type: 'beacon'` bắt gtag dùng sendBeacon | **SAI.** `initiatorType` vẫn là `fetch`. Đó là trường của Universal Analytics, GA4 bỏ qua. Đã gỡ. |
+| `event_callback` nghĩa là "đã gửi xong" | **SAI.** Callback chạy sau 4–15ms, nhưng lệnh gửi mạng xuất hiện sau vài giây, và nhiều sự kiện bị gộp vào thân một request POST. Callback chỉ báo gtag đã nhận vào hàng đợi. |
+| gtag tự xả hàng đợi lúc trang đóng | Đúng theo tài liệu Google (handler `pagehide` + sendBeacon). **Chưa kiểm chứng được từ đây** — `PerformanceObserver` chạy bất đồng bộ nên không kịp ghi trước khi trang đóng. |
+
+Giữ `event_callback` vì nó là biên an toàn gần như miễn phí (chục mili giây), không phải vì nó bảo đảm gì.
+
+**Muốn biết chắc `auto_redirect` có tới Google không:** mở một link bọc, rồi xem GA4 → Báo cáo → Thời gian thực → số sự kiện theo tên. Đó là cách duy nhất kết luận được.
+
+**Điều chắc chắn:** số trong database luôn đúng, vì `/api/track` dùng `navigator.sendBeacon` — thứ trình duyệt cam kết gửi xong. Kiểm chứng rồi: `real_clicks` tăng đúng.
+
+### 3.15. Tham số `continue` tự thêm, không bắt người gọi nhớ
 
 Spec để `continue` nằm trong mảng `parameters` do agent truyền vào. Thực tế thì khi người dùng chỉ nói *"tạo link tới trang này"*, agent gọi tool với đúng hai tham số bắt buộc — link sinh ra không có `continue`, tức là mất luôn nhánh dự phòng ở mục 3.4.
 
@@ -153,7 +175,7 @@ Chốt: `createLink` luôn gắn `continue = destination_url` nếu người g�
 
 **Kiểm chứng:** tạo link chỉ với `destination_url` + `title` → tắt link → bấm lại đúng URL đó → `307` về đúng đích. Trước khi sửa thì ra `404`.
 
-### 3.14. Tự viết lớp JSON-RPC cho MCP thay vì dùng SDK
+### 3.16. Tự viết lớp JSON-RPC cho MCP thay vì dùng SDK
 
 Route handler của Next.js App Router làm việc với `Request`/`Response` chuẩn web, còn `StreamableHTTPServerTransport` của MCP SDK nhắm vào `req`/`res` của Node — phải viết lớp chuyển đổi ở giữa.
 
