@@ -165,9 +165,34 @@ curl -s https://link-wrapper.onrender.com/api/health
 
 Mong đợi `{"status":"ok","database":"up"}`. Nếu ra `503` thì `DATABASE_URL` sai hoặc database chưa sẵn sàng.
 
-## 7. Còn lại
+## 7. Nghiệm thu đầu-cuối (2026-09-22, trên bản đã deploy)
 
-- [ ] Điền `DATABASE_URL` trong dashboard Render
+| Kiểm tra | Kết quả |
+|---|---|
+| `/api/health` | `{"status":"ok","database":"up"}` |
+| `/api/mcp` không token | HTTP 401 |
+| `initialize` | protocol `2025-06-18`, server `link-wrapper-manager@1.0.0` |
+| Tạo link, title `Dự án Á Đông` | alias `du-an-a-dong` — slug tiếng Việt đúng |
+| Encode `continue` | `https%3A%2F%2Fexample.com%3Fcode%3Dabcxyz` — khớp spec |
+| Trang bọc | title + description đúng, `x-robots-tag: noindex, nofollow, noarchive`, meta robots `noindex, nofollow, nocache` |
+| Nút thủ công | có `disabled` |
+| URL đích | giữ nguyên `https://example.com?code=abcxyz`, không bị thêm `/` |
+| Alias không tồn tại, không chữ ký | HTTP 404 |
+| Chữ ký hợp lệ + continue an toàn | HTTP 307 → đúng đích |
+| Chữ ký hợp lệ + `javascript:alert(1)` | HTTP 404 — chặn được open-redirect |
+| Chữ ký hết hạn | HTTP 404 |
+| Chữ ký sửa 1 ký tự | HTTP 404 |
+| Đếm click | 4 lượt mở → 3 bot (curl, GoogleImageProxy, prefetch) + **1 click thật** |
+
+### Bẫy khi test trên Windows
+
+Lần tạo link đầu tiên ra alias `d-n-ng` thay vì `du-an-a-dong`. **Không phải lỗi code** — console Windows làm hỏng UTF-8 trong tham số `-d` của curl, title tới server đã thành `D? � n � ��ng` (có `U+003F` và `U+FFFD`). Ghi payload ra file UTF-8 rồi `--data-binary @file` thì đúng ngay.
+
+Link rác `d-n-ng` vẫn nằm trong database, vô hại, xoá lúc nào cũng được.
+
+## 8. Còn lại
+
+- [x] Điền `DATABASE_URL` trong dashboard Render
 - [ ] Nâng gói database trước 2026-10-22
 - [ ] Nâng gói web service trước khi gửi email thật
 - [ ] Điền `GA4_ID` khi có tài khoản Google Analytics (chỉ cần restart, không build lại)

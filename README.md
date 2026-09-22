@@ -42,6 +42,38 @@ node -e "console.log('IP_SALT=' + require('crypto').randomBytes(16).toString('he
 
 ---
 
+## Kết nối MCP từ Claude
+
+Server chạy ở `https://link-wrapper.onrender.com/api/mcp`, giao thức Streamable HTTP, xác thực bằng Bearer token.
+
+### Claude Code (CLI)
+
+```bash
+claude mcp add --transport http link-wrapper https://link-wrapper.onrender.com/api/mcp   --header "Authorization: Bearer <MCP_API_TOKEN>" --scope user
+```
+
+`--scope user` để mọi dự án trên máy đều dùng được. Đổi thành `project` nếu chỉ muốn dùng trong một repo (khi đó cấu hình nằm ở `.mcp.json` và commit được — nhưng **đừng commit token**, dùng biến môi trường).
+
+Kiểm tra bằng `/mcp` trong phiên Claude Code, hoặc:
+
+```bash
+claude mcp list
+```
+
+### Claude Desktop / claude.ai
+
+Settings → Connectors → Add custom connector, điền URL `https://link-wrapper.onrender.com/api/mcp` và header `Authorization: Bearer <MCP_API_TOKEN>`.
+
+### Kiểm tra thủ công
+
+```bash
+curl -s -X POST https://link-wrapper.onrender.com/api/mcp   -H "Authorization: Bearer $MCP_API_TOKEN"   -H 'Content-Type: application/json'   -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}'
+```
+
+⚠️ Trên Windows, **đừng nhét tiếng Việt thẳng vào tham số `-d` của curl** — console sẽ làm hỏng UTF-8 và title bị biến thành dấu hỏi. Ghi payload ra file rồi dùng `--data-binary @file.json`.
+
+---
+
 ## Các đầu vào
 
 ### `POST /api/mcp`
