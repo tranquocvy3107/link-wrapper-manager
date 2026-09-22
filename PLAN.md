@@ -218,7 +218,15 @@ Dùng biến `GA4_ID` (**không** đặt tên `NEXT_PUBLIC_*`). Next.js inline b
 
 `Ga4Script` trả về `null` khi prop rỗng, nên hiện tại trang chạy sạch không có script thừa.
 
-Events khi đã cắm mã: `wrapper_view`, `auto_redirect`, `manual_redirect`, kèm `page_title = link.title`.
+Sự kiện gửi lên GA4 khi đã cắm mã — đúng ba cái, không hơn:
+
+| Sự kiện | Nguồn | Tham số |
+|---|---|---|
+| `page_view` | GA4 tự gửi từ `gtag('config', ...)` | `page_title` = title của link, `page_location` = URL đầy đủ |
+| `auto_redirect` | Hết đếm ngược, tự chuyển | `destination_url` |
+| `manual_redirect` | Người dùng bấm nút | `destination_url` |
+
+⚠️ Tham số `destination_url` chỉ hiện trong báo cáo sau khi đăng ký Custom dimension trong GA4 Admin. Chưa đăng ký thì GA4 vẫn thu nhưng không lọc/nhóm theo nó được.
 
 ---
 

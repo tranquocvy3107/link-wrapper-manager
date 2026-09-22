@@ -109,6 +109,10 @@ Next.js **nhúng cứng** biến `NEXT_PUBLIC_*` vào bundle lúc build. Nếu �
 
 Chốt: đọc `process.env.GA4_ID` trong server component rồi truyền xuống client qua prop. Điền mã sau chỉ cần đổi env + restart, không build lại. Rỗng thì component trả `null`, trang sạch không script thừa.
 
+**Ba sự kiện gửi lên GA4:** `page_view` (GA4 tự gửi, kèm `page_title` = title của link), `auto_redirect` và `manual_redirect` (kèm tham số `destination_url`). Không có sự kiện `wrapper_view` — `page_view` đã làm đúng việc đó, thêm nữa là đếm trùng.
+
+**GA4 luôn đếm thấp hơn database.** Trình chặn quảng cáo chặn gtag, người tắt JS không gửi được gì, và trang chỉ chờ 3 giây nên trên mạng chậm gtag có thể chưa kịp gửi. Database ghi ở phía server nên không dính vấn đề nào — **coi số trong database là con số thật**, GA4 để xem hành vi và nguồn traffic.
+
 ### 3.9. Không mang `utm_*` sang trang đích
 
 Mặc định tắt. Các tham số `utm_*` phục vụ GA4 trên chính trang bọc, không phải trang đích.
