@@ -1,0 +1,57 @@
+# Blueprint Render — mô tả đầy đủ hạ tầng của dự án.
+#
+# Dùng file này khi cần dựng lại từ đầu: Render Dashboard → New → Blueprint,
+# trỏ vào repo này. Render sẽ tự tạo cả database lẫn web service, và tự nối
+# DATABASE_URL — không ai phải copy mật khẩu ra ngoài.
+#
+# Các biến đánh dấu `sync: false` phải điền tay trong dashboard sau khi tạo.
+
+databases:
+  - name: link-wrapper-db
+    databaseName: link_wrapper_db
+    user: link_wrapper_db_user
+    region: singapore
+    plan: free # ⚠️ Gói free bị XOÁ sau 30 ngày. Nâng lên basic_256mb khi chạy thật.
+
+services:
+  - type: web
+    name: link-wrapper
+    runtime: node
+    region: singapore
+    plan: free # ⚠️ Gói free ngủ sau 15 phút không có traffic.
+    branch: main
+    buildCommand: npm ci && npm run build
+    # Migration chạy lúc khởi động chứ không phải lúc build: internal database URL
+    # chỉ chắc chắn kết nối được từ môi trường runtime. Script idempotent
+    # (mọi lệnh đều IF NOT EXISTS) nên chạy lại mỗi lần restart là vô hại.
+    startCommand: node scripts/migrate.mjs && npm start -- -p $PORT -H 0.0.0.0
+    healthCheckPath: /api/health
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: link-wrapper-db
+          property: connectionString
+      # Internal URL trong cùng region không cần SSL.
+      - key: DATABASE_SSL
+        value: 'false'
+      - key: NODE_VERSION
+        value: '22'
+      - key: SIGNATURE_TTL
+        value: '2592000' # 30 ngày — xem CONTEXT.md mục 3.4
+      - key: DEFAULT_TIME_WAIT
+        value: '3000'
+      # Sinh ngẫu nhiên, không bao giờ commit giá trị thật vào repo.
+      - key: LINK_SIGNING_SECRET
+        generateValue: true
+      - key: IP_SALT
+        generateValue: true
+      - key: MCP_API_TOKEN
+        generateValue: true
+      # Điền sau khi biết URL thật của service.
+      - key: PUBLIC_BASE_URL
+        sync: false
+      # Để trống = không nhúng GA4. Điền G-XXXXXXX sau, chỉ cần restart.
+      - key: GA4_ID
+        sync: false
+      - key: ALLOWED_DESTINATION_HOSTS
+        sync: false
