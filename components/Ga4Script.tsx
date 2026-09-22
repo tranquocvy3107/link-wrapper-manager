@@ -13,6 +13,12 @@ interface Props {
  * từ NEXT_PUBLIC_*. Lý do: Next.js nhúng cứng biến NEXT_PUBLIC_* vào bundle lúc
  * build, nên điền mã GA4 sau này sẽ phải build lại toàn bộ. Đọc ở server rồi
  * truyền xuống thì chỉ cần đổi env và restart. Xem CONTEXT.md mục 3.8.
+ *
+ * `transport_type: 'beacon'` bắt gtag gửi bằng navigator.sendBeacon thay vì
+ * fetch. Bắt buộc phải có ở đây: hai sự kiện auto_redirect và manual_redirect
+ * được bắn ngay trước window.location.replace, mà fetch thì bị huỷ khi trang
+ * chuyển đi — còn sendBeacon được trình duyệt cam kết gửi xong. Bỏ dòng này là
+ * mất phần lớn hai sự kiện đó.
  */
 export default function Ga4Script({ measurementId, pageTitle }: Props) {
   if (!measurementId) return null
@@ -29,7 +35,7 @@ export default function Ga4Script({ measurementId, pageTitle }: Props) {
       <Script id="ga4-init" strategy="afterInteractive">
         {`window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}
 gtag('js',new Date());
-gtag('config',${id},{page_title:${title},send_page_view:true});`}
+gtag('config',${id},{page_title:${title},send_page_view:true,transport_type:'beacon'});`}
       </Script>
     </>
   )
