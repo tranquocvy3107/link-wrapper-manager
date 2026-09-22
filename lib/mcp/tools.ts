@@ -139,7 +139,12 @@ async function handleGetData(rawArgs: unknown, ctx: ToolCallContext): Promise<To
     parameters: link.parameters,
     forward_params: link.forwardParams,
     status: link.status,
+    // Nhãn của token đã tạo link này — trả về để biết link thuộc phòng ban nào.
+    // Không có cột này trong kết quả thì việc gán nhãn token thành vô nghĩa:
+    // ghi được mà không đọc được.
+    created_by: link.createdBy,
     created_at: link.createdAt.toISOString(),
+    updated_at: link.updatedAt.toISOString(),
   }
 
   if (include_stats) {
