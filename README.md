@@ -49,7 +49,7 @@ Server chạy ở `https://link-wrapper.onrender.com/api/mcp`, giao thức Strea
 ### Claude Code (CLI)
 
 ```bash
-claude mcp add --transport http link-wrapper https://link-wrapper.onrender.com/api/mcp   --header "Authorization: Bearer <MCP_API_TOKEN>" --scope user
+claude mcp add --transport http link-wrapper https://link-wrapper.onrender.com/api/mcp --header "Authorization: Bearer <MCP_API_TOKEN>" --scope user
 ```
 
 `--scope user` để mọi dự án trên máy đều dùng được. Đổi thành `project` nếu chỉ muốn dùng trong một repo (khi đó cấu hình nằm ở `.mcp.json` và commit được — nhưng **đừng commit token**, dùng biến môi trường).
@@ -67,7 +67,7 @@ Settings → Connectors → Add custom connector, điền URL `https://link-wrap
 ### Kiểm tra thủ công
 
 ```bash
-curl -s -X POST https://link-wrapper.onrender.com/api/mcp   -H "Authorization: Bearer $MCP_API_TOKEN"   -H 'Content-Type: application/json'   -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}'
+curl -s -X POST https://link-wrapper.onrender.com/api/mcp -H "Authorization: Bearer $MCP_API_TOKEN" -H 'Content-Type: application/json' -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}'
 ```
 
 ⚠️ Trên Windows, **đừng nhét tiếng Việt thẳng vào tham số `-d` của curl** — console sẽ làm hỏng UTF-8 và title bị biến thành dấu hỏi. Ghi payload ra file rồi dùng `--data-binary @file.json`.
