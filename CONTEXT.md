@@ -136,6 +136,41 @@ Nằm ở [lib/mcp/jsonrpc.ts](lib/mcp/jsonrpc.ts). Hỗ trợ `initialize`, `no
 
 ---
 
-## 5. Trạng thái hiện tại
+## 5. Tài nguyên đã tạo
 
-Đang dựng code. Cập nhật mục này khi có thay đổi lớn.
+| | |
+|---|---|
+| Repo | https://github.com/tranquocvy3107/link-wrapper-manager — **công khai**, sẽ chuyển sang HenryJz145 sau |
+| Web service | `link-wrapper` · `srv-dap05b740ujc73b3d2mg` · https://link-wrapper.onrender.com |
+| Database | `link-wrapper-db` · `dpg-dap04go0cd8s73b90q8g-a` · Postgres 18, Singapore |
+
+Cả hai đều **gói free**, cố ý — để nghiệm thu trước khi trả tiền. Hai hạn chế phải nhớ:
+
+- **Database free bị Render xoá ngày 2026-10-22.** Nâng lên `basic_256mb` trước ngày đó, nếu không mọi link đã gửi sẽ chết.
+- **Web service free ngủ sau 15 phút** không có traffic; lần đánh thức đầu mất vài chục giây. Với link email bấm thưa thớt, nhiều người nhận sẽ gặp màn hình trắng khá lâu. Nâng lên `starter` trước khi gửi email thật.
+
+## 6. Trạng thái deploy
+
+Build **thành công** (TypeScript pass, cả 6 route sinh đúng). Khởi động **thất bại** ở đúng một chỗ: thiếu `DATABASE_URL`.
+
+Đây không phải lỗi — Render cố tình không cho API đọc mật khẩu database, nên biến này phải điền tay một lần trong dashboard. Mọi biến môi trường khác đã set xong.
+
+Sau khi điền `DATABASE_URL` (Internal Database URL của `link-wrapper-db`), Render tự deploy lại; `startCommand` sẽ chạy `scripts/migrate.mjs` tạo bảng rồi khởi động app. Script idempotent nên chạy lại mỗi lần restart là vô hại.
+
+### Kiểm tra sau khi lên
+
+```bash
+curl -s https://link-wrapper.onrender.com/api/health
+```
+
+Mong đợi `{"status":"ok","database":"up"}`. Nếu ra `503` thì `DATABASE_URL` sai hoặc database chưa sẵn sàng.
+
+## 7. Còn lại
+
+- [ ] Điền `DATABASE_URL` trong dashboard Render
+- [ ] Nâng gói database trước 2026-10-22
+- [ ] Nâng gói web service trước khi gửi email thật
+- [ ] Điền `GA4_ID` khi có tài khoản Google Analytics (chỉ cần restart, không build lại)
+- [ ] Chốt `forward_params`: có mang `utm_*` sang trang đích không — hiện mặc định tắt
+- [ ] Trỏ domain `go.reviewking.info` và đổi `PUBLIC_BASE_URL`
+- [ ] Chuyển repo sang tài khoản HenryJz145

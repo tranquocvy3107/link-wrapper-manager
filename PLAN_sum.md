@@ -104,27 +104,40 @@ Chi tiết kỹ thuật, nói ngắn: cách ghép chữ ký trong mô tả có m
 
 | | |
 |---|---|
-| Nền tảng | Hostinger, dạng ứng dụng Node.js |
-| Cơ sở dữ liệu | MySQL của Hostinger |
-| Địa chỉ web | Tạm dùng địa chỉ miễn phí Hostinger cấp, dạng `xxx-yyy-123456.hostingersite.com` |
-| Sau này | Đổi sang `go.reviewking.info` — chỉ sửa **một dòng cấu hình**, không phải làm lại gì |
+| Nền tảng | **Render** — tài khoản kaaiayy7222@gmail.com, khu vực Singapore |
+| Cơ sở dữ liệu | **PostgreSQL** của Render |
+| Địa chỉ web | https://link-wrapper.onrender.com |
+| Mã nguồn | https://github.com/tranquocvy3107/link-wrapper-manager (công khai) |
+| Sau này | Đổi sang `go.reviewking.info` — chỉ sửa **một dòng cấu hình** |
 
-**Tài khoản Hostinger:** `tranthithu64082g@gmail.com`, gói Cloud Startup — đã chốt.
+### Hai điều về gói miễn phí, cần nhớ
 
----
+Cả web lẫn database đều đang dùng **gói miễn phí**, cố ý — để bạn nghiệm thu trước khi trả tiền. Nhưng:
 
-## 8. Bạn cần chuẩn bị gì
+- **Database miễn phí bị Render xoá sau 30 ngày** (hạn: 22/10/2026). Quá ngày đó mà chưa nâng gói thì mọi link đã gửi trong email sẽ chết. Nâng gói khoảng 6 USD/tháng.
+- **Web miễn phí ngủ sau 15 phút** không có ai truy cập. Người bấm link đầu tiên sau lúc ngủ sẽ phải chờ màn hình trắng vài chục giây. Nâng gói khoảng 7 USD/tháng.
 
-Không còn gì chặn lại. Mọi thứ dưới đây đều **không gấp**, bổ sung lúc nào cũng được:
+Chưa gửi email thật thì chưa cần trả tiền. Nhưng **trước khi gửi email thật thì phải nâng cả hai**.
+
+## 8. Bạn cần làm gì
+
+**Ngay bây giờ — một việc duy nhất.** Web đã build xong và lên Render, nhưng chưa khởi động được vì thiếu chuỗi kết nối tới database. Render **cố tình không cho phần mềm nào đọc mật khẩu database** — đó là thiết kế an toàn của họ — nên mảnh này phải qua tay bạn:
+
+1. Mở https://dashboard.render.com/d/dpg-dap04go0cd8s73b90q8g-a → mục **Connections** → copy dòng **Internal Database URL**
+2. Mở https://dashboard.render.com/web/srv-dap05b740ujc73b3d2mg/env → **Add Environment Variable** → tên `DATABASE_URL`, dán chuỗi vừa copy → **Save changes**
+
+Render sẽ tự chạy lại. Kiểm tra bằng cách mở https://link-wrapper.onrender.com/api/health — thấy `"status":"ok"` là xong.
+
+**Sau này, không gấp:**
 
 - **Google Analytics** — công cụ miễn phí của Google để xem báo cáo lượt bấm. Mình code sẵn chỗ cắm nhưng để trống. Khi nào bạn tạo tài khoản và có mã dạng `G-XXXXXXXXXX` thì điền vào một dòng cấu hình là chạy, không phải sửa code, không phải build lại. Trong lúc chưa có, hệ thống vẫn tự đếm và lưu vào cơ sở dữ liệu riêng nên **bạn không mất số liệu nào**.
-- **Tên miền `reviewking.info`** — mua và trỏ về Hostinger lúc nào cũng được.
+- **Tên miền `reviewking.info`** — mua và trỏ về Render lúc nào cũng được.
 - **Câu hỏi bạn đang hỏi lại bên bạn:** khi chuyển sang trang đích, có cần mang theo các tham số đánh dấu chiến dịch (`utm_source=email`...) không? Mình tạm để **không mang theo**, nhưng làm thành một công tắc bật/tắt được cho từng link — nên bạn trả lời lúc nào cũng kịp.
 
 ---
 
-## 9. Bao lâu xong
+## 9. Trạng thái
 
-Khoảng **5–6 ngày làm việc** cho toàn bộ: hệ thống tạo link, trang chờ, ghi nhận số liệu, lọc bot, xử lý sự cố, kiểm thử, và đưa lên chạy thật.
+Code đã xong trọn bộ và đã lên Render: hệ thống tạo link, trang chờ đếm ngược, ghi nhận số liệu, lọc bot, xử lý sự cố, 123 bài kiểm thử tự động đều đạt.
 
-Mình làm trọn một lượt như bạn yêu cầu, không chia giai đoạn. Xong sẽ có bản chạy được trên địa chỉ thật để bạn bấm thử.
+Còn đúng một bước ở mục 8 là chạy được.

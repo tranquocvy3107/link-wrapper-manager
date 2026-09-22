@@ -1,28 +1,29 @@
 # Link Wrapper Manager — Kế hoạch triển khai (bản kỹ thuật)
 
 > Spec gốc: [link_wrapper_manager.md](link_wrapper_manager.md) · Bản tóm tắt dễ đọc: [PLAN_sum.md](PLAN_sum.md)
-> Cập nhật 2026-09-22 — chuyển hạ tầng từ Neon/Vercel sang Hostinger/MySQL.
+> Cập nhật 2026-09-22 — hạ tầng chốt ở Render + PostgreSQL. Trạng thái triển khai thực tế: xem [CONTEXT.md](CONTEXT.md).
 
 ## Quyết định đã chốt
 
 | Hạng mục | Chốt |
 |---|---|
-| Kiến trúc | Next.js 15 App Router, all-in-one |
-| Database | **MySQL 8 trên Hostinger** |
-| Deploy | **Hostinger Node.js hosting**, account `u948403593` (`tranthithu64082g@gmail.com`) |
-| Địa chỉ | Subdomain miễn phí `*.hostingersite.com`, đổi sang `go.reviewking.info` sau |
+| Kiến trúc | Next.js 16 App Router, all-in-one |
+| Database | **PostgreSQL 18 trên Render**, region Singapore |
+| Deploy | **Render**, workspace `NEIT Dep's workspace` (`kaaiayy7222@gmail.com`) |
+| Nguồn build | GitHub `tranquocvy3107/link-wrapper-manager` (công khai), runtime `node` |
+| Địa chỉ | `https://link-wrapper.onrender.com`, đổi sang `go.reviewking.info` sau |
 | GA4 | Để trống, cắm sau bằng biến môi trường — **không cần build lại** (xem §7) |
 | Hạn chữ ký | `SIGNATURE_TTL` qua env, mặc định 30 ngày (lệch spec, xem §4) |
 | Chuyển utm sang đích | Không, mặc định tắt. Có cờ `forward_params` bật theo từng link |
 | Cách làm | Làm trọn một lượt, không chia giai đoạn |
 
-### Hiện trạng hạ tầng (khảo sát read-only trên account `u948403593`)
+### Hiện trạng hạ tầng (đã tạo thật)
 
-- Gói Cloud Startup, hết hạn 2027-08-01. Truy cập qua collaborator access.
-- Server `srv1032.hstgr.io`, MySQL cổng 3306, giới hạn 6 GB/database.
-- Đã có 5 website Node.js đang chạy → nền tảng hỗ trợ Next.js.
-- `reviewking.info` **không** có trong account; danh sách domain đăng ký qua Hostinger đang trống.
-- Đang có 42 database, sẽ tạo thêm một cái riêng cho dự án này.
+- Web service `link-wrapper` · `srv-dap05b740ujc73b3d2mg` · gói free · Singapore
+- Database `link-wrapper-db` · `dpg-dap04go0cd8s73b90q8g-a` · Postgres 18 · gói free
+- Workspace đã có sẵn một Next.js chạy trên Render (`flux_pilot_R`) — cấu hình build/start bám theo mẫu đó.
+
+⚠️ Cả hai đều gói free, cố ý để nghiệm thu trước khi trả tiền. Database free **bị xoá 2026-10-22**; web service free **ngủ sau 15 phút** không traffic. Xem [CONTEXT.md](CONTEXT.md) mục 5.
 
 ---
 
@@ -40,15 +41,17 @@
                     ├──────────────────────────────────────────┤
                     │  lib/links.service.ts  ← nguồn sự thật    │
                     └──────────────┬───────────────────────────┘
-                                   │ 127.0.0.1:3306
-                          MySQL (links, link_visits)
+                                   │ Internal URL (cùng region)
+                        PostgreSQL (links, link_visits)
 ```
 
 MCP tool và trang bọc **gọi chung một service layer**, không gọi HTTP vòng qua nhau. Spec viết "frontend gọi MCP tool `get_redirect_data`" — ý đồ là "lấy cấu hình theo alias"; server component gọi thẳng service đạt đúng ý đó mà không tốn round-trip. Tool MCP vẫn tồn tại đầy đủ cho agent.
 
-**Stack:** Next.js 15 + TypeScript · Tailwind CSS · Drizzle ORM (`drizzle-orm/mysql2`) · Zod · `@modelcontextprotocol/sdk` · Vitest.
+**Stack (bản mới nhất tại thời điểm dựng):** Next.js 16.3.5 · React 19.3 · TypeScript 7.0 · Tailwind CSS 4.3 · Drizzle ORM 0.45 (`drizzle-orm/node-postgres`) · Zod 4.6 · Vitest 5.0.
 
-**Kết nối DB:** từ app luôn dùng `127.0.0.1:3306`, **không** dùng `srv1032.hstgr.io` (host đó chỉ dành cho kết nối từ ngoài Hostinger, và phải bật remote connection trước). Dùng `127.0.0.1` chứ không phải `localhost` vì `localhost` có thể resolve ra IPv6 `::1` mà database user không được cấp quyền.
+**Kết nối DB:** dùng **Internal Database URL** của Render — cùng region Singapore nên nhanh hơn và không cần SSL (`DATABASE_SSL=false`). External URL chỉ dùng khi kết nối từ máy cá nhân, và khi đó phải đặt `DATABASE_SSL=true` vì chứng chỉ do Render tự cấp.
+
+**MCP:** tự viết lớp JSON-RPC thay vì dùng `@modelcontextprotocol/sdk` — lý do ở [CONTEXT.md](CONTEXT.md) mục 3.10.
 
 ---
 
@@ -77,54 +80,57 @@ lib/
 drizzle/                      # migrations
 ```
 
-`next.config.ts` đặt `output: 'standalone'` để gói deploy nhẹ, hợp với Node.js hosting của Hostinger.
+`next.config.ts` đặt `outputFileTracingRoot` về thư mục dự án — thư mục cha có `package-lock.json` riêng khiến Next.js đoán nhầm workspace root. Cũng đặt header `X-Robots-Tag` cho `/r/:alias*` ở đây.
 
 ---
 
-## 3. Data model (MySQL 8)
+## 3. Data model (PostgreSQL)
+
+DDL thật nằm ở [drizzle/0000_init.sql](drizzle/0000_init.sql); schema cho query builder ở [lib/db/schema.ts](lib/db/schema.ts). Hai file phải khớp nhau.
 
 ```sql
 CREATE TABLE links (
-  id              CHAR(36)     NOT NULL PRIMARY KEY,      -- UUID sinh ở tầng app
-  alias           VARCHAR(64)  NOT NULL UNIQUE,
-  destination_url TEXT         NOT NULL,
-  title           VARCHAR(200) NOT NULL,
-  description     VARCHAR(500) NULL,
-  time_wait       INT          NOT NULL DEFAULT 3000,
-  parameters      JSON         NOT NULL,                  -- [{key,value}] đã resolve template
-  forward_params  TINYINT(1)   NOT NULL DEFAULT 0,        -- có mang utm_* sang đích không
-  status          VARCHAR(16)  NOT NULL DEFAULT 'active', -- active | disabled
-  expires_at      DATETIME     NULL,                      -- hạn của LINK, khác expires của chữ ký
-  created_by      VARCHAR(64)  NULL,                      -- id của API key gọi tool
-  created_at      DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at      DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+  id              uuid         PRIMARY KEY DEFAULT gen_random_uuid(),
+  alias           varchar(64)  NOT NULL UNIQUE,
+  destination_url text         NOT NULL,
+  title           varchar(200) NOT NULL,
+  description     varchar(500),
+  time_wait       integer      NOT NULL DEFAULT 3000,
+  parameters      jsonb        NOT NULL DEFAULT '[]'::jsonb,  -- [{key,value}] đã resolve
+  forward_params  boolean      NOT NULL DEFAULT false,
+  status          varchar(16)  NOT NULL DEFAULT 'active',
+  expires_at      timestamptz,                                -- hạn của LINK, khác chữ ký
+  created_by      varchar(64),
+  created_at      timestamptz  NOT NULL DEFAULT now(),
+  updated_at      timestamptz  NOT NULL DEFAULT now()
+);
 
 CREATE TABLE link_visits (
-  id          BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
-  link_id     CHAR(36)     NULL,
-  alias       VARCHAR(64)  NOT NULL,   -- denormalize: giữ số liệu kể cả khi link bị xoá
-  visited_at  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  ip_hash     CHAR(64)     NULL,       -- sha256(ip + IP_SALT), KHÔNG lưu IP thô
-  user_agent  VARCHAR(512) NULL,
-  referer     VARCHAR(512) NULL,
-  query       JSON         NULL,       -- toàn bộ query params lúc truy cập
-  country     CHAR(2)      NULL,       -- để null ở v1, xem ghi chú bên dưới
-  is_bot      TINYINT(1)   NOT NULL DEFAULT 0,
-  redirected  TINYINT(1)   NOT NULL DEFAULT 0,
-  visit_token CHAR(32)     NULL,       -- khớp beacon /api/track với đúng lượt truy cập
-  CONSTRAINT fk_visits_link FOREIGN KEY (link_id) REFERENCES links(id) ON DELETE SET NULL,
-  INDEX idx_alias_time  (alias, visited_at),
-  INDEX idx_link_time   (link_id, visited_at),
-  INDEX idx_visit_token (visit_token)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+  id          bigserial    PRIMARY KEY,
+  link_id     uuid         REFERENCES links(id) ON DELETE SET NULL,
+  alias       varchar(64)  NOT NULL,   -- denormalize: giữ số liệu kể cả khi link bị xoá
+  visited_at  timestamptz  NOT NULL DEFAULT now(),
+  ip_hash     char(64),                -- sha256(ip + IP_SALT), KHÔNG lưu IP thô
+  user_agent  varchar(512),
+  referer     varchar(512),
+  query       jsonb,
+  country     char(2),                 -- để null ở v1, xem ghi chú
+  is_bot      boolean      NOT NULL DEFAULT false,
+  redirected  boolean      NOT NULL DEFAULT false,
+  visit_token char(32)                 -- khớp beacon /api/track với đúng lượt truy cập
+);
+
+CREATE INDEX idx_visits_alias_time ON link_visits (alias, visited_at);
+CREATE INDEX idx_visits_link_time  ON link_visits (link_id, visited_at);
+CREATE INDEX idx_visits_token      ON link_visits (visit_token);
 ```
 
-**Ghi chú MySQL:**
+**Ghi chú:**
 
-- Dùng `DATETIME` chứ không `TIMESTAMP` (tránh giới hạn 2038 và chuyển đổi timezone ngầm). Ghi UTC, set `timezone: 'Z'` trong connection options của mysql2.
+- `gen_random_uuid()` có sẵn từ PostgreSQL 13, không cần extension `pgcrypto`.
 - `link_id` nullable + `ON DELETE SET NULL`: xoá link vẫn giữ lịch sử truy cập, tra cứu bằng `alias`.
-- Cột `country` để null ở v1. Trên Vercel có header geo sẵn, Hostinger thì không — muốn có phải thêm thư viện tra IP→quốc gia. Để dành, cột đã sẵn nên thêm sau không cần migration.
+- Cột `country` để null ở v1. Render không gắn sẵn header geo; muốn có phải thêm thư viện tra IP→quốc gia. Cột đã sẵn nên thêm sau không cần migration.
+- Thống kê dùng `count(*) FILTER (WHERE ...)` của Postgres — click thật là `redirected AND NOT is_bot`.
 
 ---
 
@@ -226,7 +232,7 @@ Events khi đã cắm mã: `wrapper_view`, `auto_redirect`, `manual_redirect`, k
 - [ ] Rate limit `/api/mcp` và `/r/[alias]`
 - [ ] Không lưu IP thô, chỉ `sha256(ip + IP_SALT)`
 - [ ] CSP header cho trang bọc
-- [ ] Mật khẩu MySQL và token chỉ nằm trong env của Hostinger, **không** commit vào repo
+- [ ] Mật khẩu database và token chỉ nằm trong env của Render, **không** commit vào repo
 
 ---
 
@@ -246,7 +252,7 @@ Báo cáo: `redirected = 1 AND is_bot = 0` là click thật, `COUNT(*)` là tổ
 ## 10. Thứ tự dựng (làm trọn một lượt, ~5.5 ngày người)
 
 1. `create-next-app` TS + Tailwind; `next.config.ts` bật `output: 'standalone'`; `lib/config.ts` validate env bằng Zod lúc boot.
-2. Tạo database MySQL trên Hostinger; `lib/db/schema.ts` + migration Drizzle; chạy migration.
+2. Tạo Postgres trên Render; `lib/db/schema.ts` + `drizzle/0000_init.sql`; migration chạy ở `startCommand`.
 3. Hàm thuần + unit test: `signature.ts`, `slug.ts`, `params.ts`, `url-guard.ts`, `bot.ts`.
 4. `links.service.ts` — createLink / getLinkByAlias / recordVisit / markRedirected / getStats.
 5. `/api/mcp` — 2 tool, input schema từ Zod, auth Bearer. Test bằng MCP Inspector.
@@ -254,7 +260,7 @@ Báo cáo: `redirected = 1 AND is_bot = 0` là click thật, `COUNT(*)` là tổ
 7. `RedirectCountdown` + `Ga4Script` + `<noscript>`.
 8. `/api/track` + lọc bot.
 9. Chạy toàn bộ test, smoke test local.
-10. Tạo website Node.js trên Hostinger, set env, build, deploy, smoke test trên subdomain thật.
+10. Tạo repo GitHub + web service Render, set env, deploy, smoke test trên URL thật.
 
 ---
 
@@ -276,7 +282,7 @@ Báo cáo: `redirected = 1 AND is_bot = 0` là click thật, `COUNT(*)` là tổ
 - [ ] Gọi `/api/mcp` không token → 401
 - [ ] Request có `Sec-Purpose: prefetch` → ghi `is_bot = 1`
 - [ ] `GA4_ID` rỗng → trang không có script GA4, vẫn chạy bình thường
-- [ ] Deploy lên subdomain Hostinger, tạo link thật và bấm thử thành công
+- [ ] Deploy lên Render, tạo link thật và bấm thử thành công
 
 ---
 
@@ -309,17 +315,22 @@ Báo cáo: `redirected = 1 AND is_bot = 0` là click thật, `COUNT(*)` là tổ
 
 ---
 
-## 13. Biến môi trường (set qua Hostinger, không commit)
+## 13. Biến môi trường (set trong dashboard Render, không commit)
+
+Xem [.env.example](.env.example) để biết mô tả từng biến.
 
 ```
-DATABASE_URL=mysql://<db_user>:PASSWORD@127.0.0.1:3306/<db_name>
+DATABASE_URL=                 # Internal Database URL của link-wrapper-db
+DATABASE_SSL=false            # Internal URL cùng region thì không cần SSL
 LINK_SIGNING_SECRET=          # random 32 bytes hex
-IP_SALT=                      # random, dùng để hash IP
+IP_SALT=                      # random 16 bytes hex
 MCP_API_TOKEN=                # Bearer token cho /api/mcp
-PUBLIC_BASE_URL=              # https://<subdomain>.hostingersite.com, sau đổi thành https://go.reviewking.info
-SIGNATURE_TTL=2592000         # giây, mặc định 30 ngày
+PUBLIC_BASE_URL=https://link-wrapper.onrender.com
+SIGNATURE_TTL=2592000         # giây, 30 ngày
+DEFAULT_TIME_WAIT=3000
 GA4_ID=                       # để trống; điền G-XXXXXXX sau, chỉ cần restart
 ALLOWED_DESTINATION_HOSTS=    # tuỳ chọn, phân tách bằng dấu phẩy
+NODE_VERSION=22
 ```
 
-Set bằng `hosting_replaceNode_jsEnvironmentVariablesV1` — lưu ý API này **thay toàn bộ** danh sách, không phải thêm từng cái.
+`render.yaml` trong repo mô tả toàn bộ hạ tầng và nối `DATABASE_URL` bằng `fromDatabase` — dùng khi cần dựng lại từ đầu qua Blueprint, lúc đó không ai phải copy mật khẩu ra ngoài.
