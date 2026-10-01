@@ -28,6 +28,10 @@ const envSchema = z.object({
   SIGNATURE_TTL: z.string().default('63072000'), // 2 năm
   DEFAULT_TIME_WAIT: z.string().default('3000'),
 
+  // Nhan token duoc phep goi cac tool pha huy du lieu. Mac dinh chi 'default'.
+  // Token cua tung phong ban KHONG duoc xoa du lieu cua nhau.
+  ADMIN_LABELS: z.string().default('default'),
+
   GA4_ID: z.string().default(''),
   ALLOWED_DESTINATION_HOSTS: z.string().default(''),
 })
@@ -55,6 +59,8 @@ export interface AppConfig {
   ga4Id: string
   /** Mảng rỗng nghĩa là cho phép mọi host public. */
   allowedDestinationHosts: string[]
+  /** Nhãn token được phép gọi tool phá huỷ dữ liệu. */
+  adminLabels: string[]
 }
 
 function toBool(raw: string): boolean {
@@ -143,6 +149,9 @@ export function getConfig(): AppConfig {
     ga4Id: env.GA4_ID.trim(),
     allowedDestinationHosts: env.ALLOWED_DESTINATION_HOSTS.split(',')
       .map((h) => h.trim().toLowerCase())
+      .filter(Boolean),
+    adminLabels: env.ADMIN_LABELS.split(',')
+      .map((l) => l.trim())
       .filter(Boolean),
   }
 

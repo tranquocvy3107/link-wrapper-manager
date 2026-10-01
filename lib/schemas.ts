@@ -75,6 +75,18 @@ export const listRedirectLinksInput = z
   })
   .strict()
 
+/** Xoa du lieu. `confirm` phai dung chuoi 'XOA VINH VIEN' moi chay that. */
+export const purgeDataInput = z
+  .object({
+    before: z.string().min(4).max(40),
+    dry_run: z.boolean().optional(),
+    confirm: z.string().optional(),
+  })
+  .strict()
+
+export const PURGE_CONFIRM_PHRASE = 'XOA VINH VIEN'
+
+export type PurgeDataInput = z.infer<typeof purgeDataInput>
 export type ListRedirectLinksInput = z.infer<typeof listRedirectLinksInput>
 export type GenerateRedirectUrlInput = z.infer<typeof generateRedirectUrlInput>
 export type GetRedirectDataInput = z.infer<typeof getRedirectDataInput>
@@ -197,6 +209,29 @@ export const LIST_REDIRECT_LINKS_JSON_SCHEMA = {
       description: 'Lọc theo nhãn của token đã tạo link, ví dụ "marketing".',
     },
   },
+  additionalProperties: false,
+} as const
+
+export const PURGE_DATA_JSON_SCHEMA = {
+  type: 'object',
+  properties: {
+    before: {
+      type: 'string',
+      description:
+        'Moc cat dang ISO, vi du 2026-10-01. Xoa moi link tao TRUOC moc nay va moi luot truy cap truoc moc nay.',
+    },
+    dry_run: {
+      type: 'boolean',
+      default: true,
+      description: 'Mac dinh true: chi dem va liet ke, KHONG xoa gi. Dat false moi xoa that.',
+    },
+    confirm: {
+      type: 'string',
+      description:
+        'Bat buoc khi dry_run=false. Phai dung chuoi "XOA VINH VIEN". Khong hoan tac duoc.',
+    },
+  },
+  required: ['before'],
   additionalProperties: false,
 } as const
 

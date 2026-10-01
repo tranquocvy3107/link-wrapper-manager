@@ -1,11 +1,15 @@
+import { getConfig } from '../config'
 import {
   GENERATE_REDIRECT_URL_JSON_SCHEMA,
   GET_REDIRECT_DATA_JSON_SCHEMA,
   LIST_REDIRECT_LINKS_JSON_SCHEMA,
+  PURGE_CONFIRM_PHRASE,
+  PURGE_DATA_JSON_SCHEMA,
   UPDATE_REDIRECT_URL_JSON_SCHEMA,
   generateRedirectUrlInput,
   getRedirectDataInput,
   listRedirectLinksInput,
+  purgeDataInput,
   updateRedirectUrlInput,
 } from '../schemas'
 import {
@@ -14,6 +18,7 @@ import {
   getLinkByAlias,
   getStats,
   listLinks,
+  purgeBefore,
   recordVisit,
   updateLink,
 } from '../links.service'
@@ -59,6 +64,15 @@ export const TOOLS: ToolDescriptor[] = [
       'dùng để nhìn toàn cảnh trước khi quyết định bất cứ việc gì ảnh hưởng tới dữ liệu.',
     inputSchema: LIST_REDIRECT_LINKS_JSON_SCHEMA,
   },
+  {
+    name: 'purge_data',
+    title: 'Xoá dữ liệu cũ',
+    description:
+      'Xoá vĩnh viễn mọi link tạo trước một mốc thời gian, kèm mọi lượt truy cập trước mốc đó. ' +
+      'Mặc định chỉ chạy thử để đếm và liệt kê, không đụng dữ liệu. ' +
+      'Chỉ token có nhãn quản trị mới gọi được. KHÔNG HOÀN TÁC ĐƯỢC.',
+    inputSchema: PURGE_DATA_JSON_SCHEMA,
+  },
 ]
 
 export interface ToolResult {
@@ -96,6 +110,8 @@ export async function callTool(
       return handleUpdate(rawArgs)
     case 'list_redirect_links':
       return handleList(rawArgs)
+    case 'purge_data':
+      return handlePurge(rawArgs, ctx)
     default:
       return fail(`Không có tool tên "${name}"`, 'unknown_tool')
   }
@@ -176,6 +192,39 @@ async function handleList(rawArgs: unknown): Promise<ToolResult> {
   }
 
   return ok(await listLinks(parsed.data))
+}
+
+/**
+ * Ba lớp chặn trước khi dữ liệu biến mất:
+ *   1. Chỉ token có nhãn quản trị gọi được — token phòng ban không xoá được của nhau
+ *   2. Mặc định `dry_run` bật, chỉ đếm và liệt kê
+ *   3. Muốn xoá thật phải gõ đúng câu xác nhận
+ */
+async function handlePurge(rawArgs: unknown, ctx: ToolCallContext): Promise<ToolResult> {
+  const parsed = purgeDataInput.safeParse(rawArgs ?? {})
+  if (!parsed.success) {
+    const details = parsed.error.issues.map((i) => `${i.path.join('.') || '(gốc)'}: ${i.message}`)
+    return fail(`Tham số không hợp lệ: ${details.join('; ')}`, 'invalid_params')
+  }
+
+  const label = ctx.createdBy ?? ''
+  if (!getConfig().adminLabels.includes(label)) {
+    return fail(
+      `Token nhãn "${label}" không có quyền xoá dữ liệu. Chỉ token quản trị mới gọi được tool này.`,
+      'forbidden',
+    )
+  }
+
+  const dryRun = parsed.data.dry_run ?? true
+
+  if (!dryRun && parsed.data.confirm !== PURGE_CONFIRM_PHRASE) {
+    return fail(
+      `Muốn xoá thật thì phải truyền confirm đúng bằng chuỗi "${PURGE_CONFIRM_PHRASE}".`,
+      'confirmation_required',
+    )
+  }
+
+  return ok(await purgeBefore({ before: parsed.data.before, dry_run: dryRun }))
 }
 
 async function handleUpdate(rawArgs: unknown): Promise<ToolResult> {

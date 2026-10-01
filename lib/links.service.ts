@@ -358,10 +358,16 @@ export interface ListLinksInput {
 export interface LinkListRow {
   alias: string
   title: string
+  desc: string | null
   destination_url: string
+  time_wait: number
+  parameters: LinkParameter[]
+  forward_params: boolean
   created_by: string | null
   status: string
   created_at: string
+  updated_at: string
+  expires_at: string | null
   total_views: number
   real_clicks: number
   bot_views: number
@@ -412,7 +418,8 @@ export async function listLinks(input: ListLinksInput = {}): Promise<ListLinksRe
   const total = Number((totalRes.rows[0] as { n: number } | undefined)?.n ?? 0)
 
   const rowsRes = await db.execute(sql`
-    select l.alias, l.title, l.destination_url, l.created_by, l.status, l.created_at,
+    select l.alias, l.title, l.description, l.destination_url, l.time_wait, l.parameters,
+           l.forward_params, l.created_by, l.status, l.created_at, l.updated_at, l.expires_at,
            coalesce(v.total_views, 0)::int as total_views,
            coalesce(v.real_clicks, 0)::int as real_clicks,
            coalesce(v.bot_views, 0)::int as bot_views,
@@ -449,10 +456,16 @@ export async function listLinks(input: ListLinksInput = {}): Promise<ListLinksRe
     rows: (rowsRes.rows as Record<string, unknown>[]).map((r) => ({
       alias: String(r.alias),
       title: String(r.title),
+      desc: r.description === null ? null : String(r.description),
       destination_url: String(r.destination_url),
+      time_wait: Number(r.time_wait),
+      parameters: (r.parameters ?? []) as LinkParameter[],
+      forward_params: Boolean(r.forward_params),
       created_by: r.created_by === null ? null : String(r.created_by),
       status: String(r.status),
       created_at: isoFull(r.created_at) ?? '',
+      updated_at: isoFull(r.updated_at) ?? '',
+      expires_at: isoFull(r.expires_at),
       total_views: Number(r.total_views),
       real_clicks: Number(r.real_clicks),
       bot_views: Number(r.bot_views),
@@ -468,6 +481,71 @@ export async function listLinks(input: ListLinksInput = {}): Promise<ListLinksRe
       views: Number(r.views),
       real_clicks: Number(r.real_clicks),
     })),
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Xoá dữ liệu
+// ---------------------------------------------------------------------------
+
+export interface PurgeInput {
+  /** Mốc cắt, ISO. Xoá mọi thứ TRƯỚC mốc này. */
+  before: string
+  /** false mới thực sự xoá. */
+  dry_run: boolean
+}
+
+export interface PurgeResult {
+  dry_run: boolean
+  before: string
+  links_affected: number
+  visits_affected: number
+  aliases: string[]
+  remaining_links: number
+  remaining_visits: number
+}
+
+/**
+ * Xoá link tạo trước một mốc, và mọi lượt truy cập trước mốc đó.
+ *
+ * KHÔNG HOÀN TÁC ĐƯỢC. Mặc định `dry_run` bật — chỉ đếm, không đụng dữ liệu.
+ *
+ * Xoá cả lượt truy cập chứ không chỉ link: ràng buộc khoá ngoại là
+ * ON DELETE SET NULL, nên xoá link xong các dòng lượt truy cập vẫn nằm lại với
+ * `link_id` rỗng. Không dọn thì số liệu cũ vẫn lẩn quất trong bảng.
+ */
+export async function purgeBefore(input: PurgeInput): Promise<PurgeResult> {
+  const db = getDb()
+  const cutoff = input.before
+
+  const preview = await db.execute(sql`
+    select coalesce(array_agg(alias order by created_at), '{}') as aliases, count(*)::int as n
+      from links where created_at < ${cutoff}::timestamptz
+  `)
+  const previewRow = preview.rows[0] as { aliases: string[]; n: number }
+
+  const visitCount = await db.execute(sql`
+    select count(*)::int as n from link_visits where visited_at < ${cutoff}::timestamptz
+  `)
+  const visitsAffected = Number((visitCount.rows[0] as { n: number }).n)
+
+  if (!input.dry_run) {
+    // Lượt truy cập trước, rồi mới tới link — tránh để lại dòng mồ côi.
+    await db.execute(sql`delete from link_visits where visited_at < ${cutoff}::timestamptz`)
+    await db.execute(sql`delete from links where created_at < ${cutoff}::timestamptz`)
+  }
+
+  const remainL = await db.execute(sql`select count(*)::int as n from links`)
+  const remainV = await db.execute(sql`select count(*)::int as n from link_visits`)
+
+  return {
+    dry_run: input.dry_run,
+    before: cutoff,
+    links_affected: Number(previewRow.n),
+    visits_affected: visitsAffected,
+    aliases: previewRow.aliases ?? [],
+    remaining_links: Number((remainL.rows[0] as { n: number }).n),
+    remaining_visits: Number((remainV.rows[0] as { n: number }).n),
   }
 }
 
