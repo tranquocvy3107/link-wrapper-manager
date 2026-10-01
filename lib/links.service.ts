@@ -342,6 +342,136 @@ export async function markRedirected(visitToken: string): Promise<boolean> {
 }
 
 // ---------------------------------------------------------------------------
+// Liệt kê
+// ---------------------------------------------------------------------------
+
+export interface ListLinksInput {
+  limit?: number
+  offset?: number
+  /** ISO date/datetime. Lọc theo created_at. */
+  created_before?: string
+  created_after?: string
+  status?: 'active' | 'disabled' | 'all'
+  created_by?: string
+}
+
+export interface LinkListRow {
+  alias: string
+  title: string
+  destination_url: string
+  created_by: string | null
+  status: string
+  created_at: string
+  total_views: number
+  real_clicks: number
+  bot_views: number
+  last_visited_at: string | null
+}
+
+export interface ListLinksResult {
+  total: number
+  rows: LinkListRow[]
+  /** Số link tạo mỗi ngày, tách theo nhãn token — dùng để phân biệt dữ liệu test và thật. */
+  links_by_day: Array<{ day: string; created_by: string | null; links: number }>
+  /** Lượt truy cập mỗi ngày trên toàn hệ thống. */
+  visits_by_day: Array<{ day: string; views: number; real_clicks: number }>
+}
+
+function isoDay(v: unknown): string {
+  return v instanceof Date ? v.toISOString().slice(0, 10) : String(v).slice(0, 10)
+}
+
+function isoFull(v: unknown): string | null {
+  if (v === null || v === undefined) return null
+  return v instanceof Date ? v.toISOString() : String(v)
+}
+
+/**
+ * Liệt kê link kèm số liệu. Không có tool này thì chỉ tra được từng alias một —
+ * không có cách nào nhìn toàn cảnh, mà nhìn toàn cảnh là điều kiện bắt buộc
+ * trước khi quyết định xoá bất cứ thứ gì.
+ */
+export async function listLinks(input: ListLinksInput = {}): Promise<ListLinksResult> {
+  const db = getDb()
+
+  const limit = Math.min(Math.max(input.limit ?? 50, 1), 200)
+  const offset = Math.max(input.offset ?? 0, 0)
+  const status = input.status ?? 'all'
+
+  const conds = [sql`true`]
+  if (status !== 'all') conds.push(sql`l.status = ${status}`)
+  if (input.created_before) conds.push(sql`l.created_at < ${input.created_before}::timestamptz`)
+  if (input.created_after) conds.push(sql`l.created_at >= ${input.created_after}::timestamptz`)
+  if (input.created_by) conds.push(sql`l.created_by = ${input.created_by}`)
+
+  const where = sql.join(conds, sql` and `)
+
+  const totalRes = await db.execute(
+    sql`select count(*)::int as n from links l where ${where}`,
+  )
+  const total = Number((totalRes.rows[0] as { n: number } | undefined)?.n ?? 0)
+
+  const rowsRes = await db.execute(sql`
+    select l.alias, l.title, l.destination_url, l.created_by, l.status, l.created_at,
+           coalesce(v.total_views, 0)::int as total_views,
+           coalesce(v.real_clicks, 0)::int as real_clicks,
+           coalesce(v.bot_views, 0)::int as bot_views,
+           v.last_visited_at
+      from links l
+      left join (
+        select link_id,
+               count(*) as total_views,
+               count(*) filter (where redirected and not is_bot) as real_clicks,
+               count(*) filter (where is_bot) as bot_views,
+               max(visited_at) as last_visited_at
+          from link_visits
+         group by link_id
+      ) v on v.link_id = l.id
+     where ${where}
+     order by l.created_at desc
+     limit ${limit} offset ${offset}
+  `)
+
+  const byDayRes = await db.execute(sql`
+    select date(created_at) as day, created_by, count(*)::int as links
+      from links group by 1, 2 order by 1, 2
+  `)
+
+  const visitsRes = await db.execute(sql`
+    select date(visited_at) as day,
+           count(*)::int as views,
+           count(*) filter (where redirected and not is_bot)::int as real_clicks
+      from link_visits group by 1 order by 1
+  `)
+
+  return {
+    total,
+    rows: (rowsRes.rows as Record<string, unknown>[]).map((r) => ({
+      alias: String(r.alias),
+      title: String(r.title),
+      destination_url: String(r.destination_url),
+      created_by: r.created_by === null ? null : String(r.created_by),
+      status: String(r.status),
+      created_at: isoFull(r.created_at) ?? '',
+      total_views: Number(r.total_views),
+      real_clicks: Number(r.real_clicks),
+      bot_views: Number(r.bot_views),
+      last_visited_at: isoFull(r.last_visited_at),
+    })),
+    links_by_day: (byDayRes.rows as Record<string, unknown>[]).map((r) => ({
+      day: isoDay(r.day),
+      created_by: r.created_by === null ? null : String(r.created_by),
+      links: Number(r.links),
+    })),
+    visits_by_day: (visitsRes.rows as Record<string, unknown>[]).map((r) => ({
+      day: isoDay(r.day),
+      views: Number(r.views),
+      real_clicks: Number(r.real_clicks),
+    })),
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Thống kê
 // ---------------------------------------------------------------------------
 

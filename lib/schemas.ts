@@ -63,6 +63,19 @@ export const updateRedirectUrlInput = z
     'Phải truyền ít nhất một trường để sửa, ngoài alias',
   )
 
+/** Liệt kê link. Mọi trường đều tuỳ chọn — không truyền gì là xem toàn bộ. */
+export const listRedirectLinksInput = z
+  .object({
+    limit: z.number().int().min(1).max(200).optional(),
+    offset: z.number().int().min(0).optional(),
+    created_before: z.string().min(4).max(40).optional(),
+    created_after: z.string().min(4).max(40).optional(),
+    status: z.enum(['active', 'disabled', 'all']).optional(),
+    created_by: z.string().max(64).optional(),
+  })
+  .strict()
+
+export type ListRedirectLinksInput = z.infer<typeof listRedirectLinksInput>
 export type GenerateRedirectUrlInput = z.infer<typeof generateRedirectUrlInput>
 export type GetRedirectDataInput = z.infer<typeof getRedirectDataInput>
 export type UpdateRedirectUrlInput = z.infer<typeof updateRedirectUrlInput>
@@ -151,6 +164,39 @@ export const GET_REDIRECT_DATA_JSON_SCHEMA = {
     },
   },
   required: ['alias'],
+  additionalProperties: false,
+} as const
+
+export const LIST_REDIRECT_LINKS_JSON_SCHEMA = {
+  type: 'object',
+  properties: {
+    limit: {
+      type: 'integer',
+      minimum: 1,
+      maximum: 200,
+      default: 50,
+      description: 'Số link trả về mỗi lần.',
+    },
+    offset: { type: 'integer', minimum: 0, default: 0, description: 'Bỏ qua bao nhiêu link đầu.' },
+    created_before: {
+      type: 'string',
+      description: 'Chỉ lấy link tạo TRƯỚC mốc này. Dạng ISO, ví dụ 2026-09-30 hoặc 2026-09-30T00:00:00Z.',
+    },
+    created_after: {
+      type: 'string',
+      description: 'Chỉ lấy link tạo TỪ mốc này trở đi. Dạng ISO.',
+    },
+    status: {
+      type: 'string',
+      enum: ['active', 'disabled', 'all'],
+      default: 'all',
+      description: 'Lọc theo trạng thái.',
+    },
+    created_by: {
+      type: 'string',
+      description: 'Lọc theo nhãn của token đã tạo link, ví dụ "marketing".',
+    },
+  },
   additionalProperties: false,
 } as const
 

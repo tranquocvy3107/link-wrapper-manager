@@ -1,9 +1,11 @@
 import {
   GENERATE_REDIRECT_URL_JSON_SCHEMA,
   GET_REDIRECT_DATA_JSON_SCHEMA,
+  LIST_REDIRECT_LINKS_JSON_SCHEMA,
   UPDATE_REDIRECT_URL_JSON_SCHEMA,
   generateRedirectUrlInput,
   getRedirectDataInput,
+  listRedirectLinksInput,
   updateRedirectUrlInput,
 } from '../schemas'
 import {
@@ -11,6 +13,7 @@ import {
   createLink,
   getLinkByAlias,
   getStats,
+  listLinks,
   recordVisit,
   updateLink,
 } from '../links.service'
@@ -47,6 +50,15 @@ export const TOOLS: ToolDescriptor[] = [
       'hoặc tắt link. Alias không đổi được, nên mọi URL đã gửi trong email vẫn dùng tiếp.',
     inputSchema: UPDATE_REDIRECT_URL_JSON_SCHEMA,
   },
+  {
+    name: 'list_redirect_links',
+    title: 'Liệt kê link',
+    description:
+      'Liệt kê các link đã tạo kèm số lượt xem và click thật, lọc được theo ngày tạo, trạng thái ' +
+      'và nhãn phòng ban. Trả kèm thống kê số link tạo mỗi ngày và lượt truy cập mỗi ngày — ' +
+      'dùng để nhìn toàn cảnh trước khi quyết định bất cứ việc gì ảnh hưởng tới dữ liệu.',
+    inputSchema: LIST_REDIRECT_LINKS_JSON_SCHEMA,
+  },
 ]
 
 export interface ToolResult {
@@ -82,6 +94,8 @@ export async function callTool(
       return handleGetData(rawArgs, ctx)
     case 'update_redirect_url':
       return handleUpdate(rawArgs)
+    case 'list_redirect_links':
+      return handleList(rawArgs)
     default:
       return fail(`Không có tool tên "${name}"`, 'unknown_tool')
   }
@@ -152,6 +166,16 @@ async function handleGetData(rawArgs: unknown, ctx: ToolCallContext): Promise<To
   }
 
   return ok(payload)
+}
+
+async function handleList(rawArgs: unknown): Promise<ToolResult> {
+  const parsed = listRedirectLinksInput.safeParse(rawArgs ?? {})
+  if (!parsed.success) {
+    const details = parsed.error.issues.map((i) => `${i.path.join('.') || '(gốc)'}: ${i.message}`)
+    return fail(`Tham số không hợp lệ:\n${details.join('\n')}`, 'invalid_params')
+  }
+
+  return ok(await listLinks(parsed.data))
 }
 
 async function handleUpdate(rawArgs: unknown): Promise<ToolResult> {
