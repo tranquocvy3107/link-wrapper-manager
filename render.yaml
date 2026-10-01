@@ -37,7 +37,7 @@ services:
       - key: NODE_VERSION
         value: '22'
       - key: SIGNATURE_TTL
-        value: '2592000' # 30 ngày — xem CONTEXT.md mục 3.4
+        value: '63072000' # 2 năm — xem CONTEXT.md mục 3.4
       - key: DEFAULT_TIME_WAIT
         value: '3000'
       # Sinh ngẫu nhiên, không bao giờ commit giá trị thật vào repo.

@@ -25,7 +25,7 @@ const envSchema = z.object({
   MCP_API_TOKENS: z.string().default(''),
 
   PUBLIC_BASE_URL: z.string().min(1, 'PUBLIC_BASE_URL là bắt buộc'),
-  SIGNATURE_TTL: z.string().default('2592000'),
+  SIGNATURE_TTL: z.string().default('63072000'), // 2 năm
   DEFAULT_TIME_WAIT: z.string().default('3000'),
 
   GA4_ID: z.string().default(''),
@@ -138,7 +138,7 @@ export function getConfig(): AppConfig {
     ipSalt: env.IP_SALT,
     apiClients: parseApiClients(env.MCP_API_TOKEN, env.MCP_API_TOKENS),
     publicBaseUrl: env.PUBLIC_BASE_URL.replace(/\/+$/, ''),
-    signatureTtl: toPositiveInt(env.SIGNATURE_TTL, 2_592_000, 'SIGNATURE_TTL'),
+    signatureTtl: toPositiveInt(env.SIGNATURE_TTL, 63_072_000, 'SIGNATURE_TTL'),
     defaultTimeWait: toPositiveInt(env.DEFAULT_TIME_WAIT, 3000, 'DEFAULT_TIME_WAIT'),
     ga4Id: env.GA4_ID.trim(),
     allowedDestinationHosts: env.ALLOWED_DESTINATION_HOSTS.split(',')
