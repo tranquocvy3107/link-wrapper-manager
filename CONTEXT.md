@@ -226,6 +226,18 @@ curl -s https://link-wrapper.onrender.com/api/health
 
 Mong đợi `{"status":"ok","database":"up"}`. Nếu ra `503` thì `DATABASE_URL` sai hoặc database chưa sẵn sàng.
 
+## 6b. Dọn dữ liệu test ngày 2026-10-01
+
+Cấp trên đưa hệ thống vào chạy thật mà không báo. Người dùng muốn xoá dữ liệu test của mình.
+
+**Phát hiện khi kiểm tra:** không có dữ liệu nào ngày 29 và 30/09 như người dùng tưởng. Thực tế có ba mốc: 22/09 (14 link, toàn bộ là quá trình dựng và thử), 25/09 (1 link `seven-world` trỏ tới `.test` — tên miền dành riêng cho thử nghiệm), và 01/10 (1 link racknerd là việc chạy thật đầu tiên).
+
+**Đã cảnh báo trước khi xoá:** mốc "trước hôm qua" sẽ giết ba link mang mã hoa hồng (`taplio-ai-tool`, `canni-beauty`, `smart-scout`). Người dùng vẫn chọn xoá sạch trước 01/10.
+
+**Kết quả:** xoá 15 link + 91 lượt truy cập. Còn 1 link, 8 lượt. Sao lưu đầy đủ nằm ở `backup/sao-luu-truoc-khi-xoa-*.json` (file này nằm trong .gitignore, chỉ có ở máy người dùng).
+
+**Điều đáng ghi nhớ:** URL đầy đủ của link đã xoá **vẫn chuyển hướng đúng** nhờ nhánh dự phòng chữ ký — kiểm chứng rồi, `canni-beauty` cho 307 về đúng đích kèm mã hoa hồng. Chỉ chết sau khi chữ ký hết hạn. Nghĩa là xoá link không lập tức giết link đã gửi đi, nhưng cũng đừng dựa vào đó.
+
 ## 7. Nghiệm thu đầu-cuối (2026-09-22, trên bản đã deploy)
 
 | Kiểm tra | Kết quả |
