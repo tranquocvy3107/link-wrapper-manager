@@ -192,6 +192,8 @@ Nằm ở [lib/mcp/jsonrpc.ts](lib/mcp/jsonrpc.ts). Hỗ trợ `initialize`, `no
 - **Postgres của Render cần SSL khi kết nối từ ngoài.** Trong cùng region dùng Internal Database URL thì không cần. Biến `DATABASE_SSL` điều khiển việc này.
 - **Đừng đổi tên `GA4_ID` thành `NEXT_PUBLIC_GA4_ID`** — xem mục 3.8.
 - **`đ` tiếng Việt không tự phân rã bằng NFD.** Phải thay tay trong [lib/slug.ts](lib/slug.ts), nếu không `"Dự án"` ra `du-Đan` thay vì `du-an`.
+- **Đừng đổi gói database và deploy app cùng lúc.** Đổi gói khiến Render khởi động lại database; trong vài chục giây đó nó từ chối kết nối. Migration nằm trong `startCommand` nên gặp `ECONNREFUSED` là cả app không lên được. Dính đúng chuyện này ngày 2026-10-01. Đã vá: [scripts/migrate.mjs](scripts/migrate.mjs) thử lại 10 lần cách nhau 3 giây. Nhưng vẫn nên đổi gói xong, đợi database `available` rồi mới deploy.
+- **Deploy hỏng KHÔNG gây gián đoạn.** Render giữ bản live cũ chạy tiếp. Lần hỏng 2026-10-01 app vẫn phục vụ bình thường suốt. Đừng hoảng khi thấy deploy đỏ — kiểm tra `/api/health` trước.
 - **`git push` KHÔNG tự deploy.** Service bật `autoDeploy: yes`, nhưng repo được nối với Render bằng **URL công khai** chứ không qua GitHub App, nên Render không nhận được webhook từ GitHub. Phải bấm **Manual Deploy** trong dashboard (hoặc gọi API `trigger_deploy`). Muốn tự động thì vào Render kết nối tài khoản GitHub `tranquocvy3107`, rồi chọn lại repo cho service.
 - **Gói free của Render ngủ sau 15 phút không có traffic**, lần đánh thức đầu mất vài chục giây. Với link trong email thì lần bấm đầu tiên sau một thời gian dài sẽ chậm. Muốn tránh phải lên gói starter.
 
@@ -205,10 +207,14 @@ Nằm ở [lib/mcp/jsonrpc.ts](lib/mcp/jsonrpc.ts). Hỗ trợ `initialize`, `no
 | Web service | `link-wrapper` · `srv-dap05b740ujc73b3d2mg` · https://link-wrapper.onrender.com |
 | Database | `link-wrapper-db` · `dpg-dap04go0cd8s73b90q8g-a` · Postgres 18, Singapore |
 
-Cả hai đều **gói free**, cố ý — để nghiệm thu trước khi trả tiền. Hai hạn chế phải nhớ:
+**Đã nâng gói trả phí ngày 2026-10-01** khi hệ thống vào chạy thật:
 
-- **Database free bị Render xoá ngày 2026-10-22.** Nâng lên `basic_256mb` trước ngày đó, nếu không mọi link đã gửi sẽ chết.
-- **Web service free ngủ sau 15 phút** không có traffic; lần đánh thức đầu mất vài chục giây. Với link email bấm thưa thớt, nhiều người nhận sẽ gặp màn hình trắng khá lâu. Nâng lên `starter` trước khi gửi email thật.
+| | Gói | Giá |
+|---|---|---|
+| Web service | `0.5c-512mb` (Starter) | ~7 USD/tháng |
+| Database | `0.1c-256mb` (Basic 256MB) | ~6 USD/tháng |
+
+Web không còn ngủ sau 15 phút, database không còn mốc hết hạn 30 ngày.
 
 ## 6. Trạng thái deploy
 
