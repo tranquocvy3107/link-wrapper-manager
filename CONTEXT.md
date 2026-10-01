@@ -113,6 +113,12 @@ Chốt: đọc `process.env.GA4_ID` trong server component rồi truyền xuốn
 
 **GA4 luôn đếm thấp hơn database.** Trình chặn quảng cáo chặn gtag, người tắt JS không gửi được gì, và trang chỉ chờ 3 giây nên trên mạng chậm gtag có thể chưa kịp gửi. Database ghi ở phía server nên không dính vấn đề nào — **coi số trong database là con số thật**, GA4 để xem hành vi và nguồn traffic.
 
+**Đổi property ngày 2026-10-01.** Ban đầu dùng `G-78PYJGRY7B` — property người dùng tự tạo bằng tài khoản Google cá nhân. Khi hệ thống vào chạy thật, chuyển sang property của công ty `G-KJWN54YL38`.
+
+Dữ liệu cũ **không chuyển được**. GA4 không có chức năng gộp hay di chuyển dữ liệu giữa hai property — đó là giới hạn của Google, không phải của hệ thống này. Property cũ giữ nguyên số liệu tuần đầu như một bản lưu lịch sử.
+
+Đường duy nhất để bơm dữ liệu cũ sang là Measurement Protocol, nhưng nó **chỉ nhận sự kiện trong vòng 72 giờ** và bắt phải bịa `client_id` cho từng lượt — tức là tạo ra người dùng giả trong báo cáo. Với lượng dữ liệu nhỏ thì hại nhiều hơn lợi, nên không làm.
+
 ### 3.9. Không mang `utm_*` sang trang đích
 
 Mặc định tắt. Các tham số `utm_*` phục vụ GA4 trên chính trang bọc, không phải trang đích.
