@@ -200,6 +200,8 @@ Nằm ở [lib/mcp/jsonrpc.ts](lib/mcp/jsonrpc.ts). Hỗ trợ `initialize`, `no
 - **`đ` tiếng Việt không tự phân rã bằng NFD.** Phải thay tay trong [lib/slug.ts](lib/slug.ts), nếu không `"Dự án"` ra `du-Đan` thay vì `du-an`.
 - **Đừng đổi gói database và deploy app cùng lúc.** Đổi gói khiến Render khởi động lại database; trong vài chục giây đó nó từ chối kết nối. Migration nằm trong `startCommand` nên gặp `ECONNREFUSED` là cả app không lên được. Dính đúng chuyện này ngày 2026-10-01. Đã vá: [scripts/migrate.mjs](scripts/migrate.mjs) thử lại 10 lần cách nhau 3 giây. Nhưng vẫn nên đổi gói xong, đợi database `available` rồi mới deploy.
 - **Deploy hỏng KHÔNG gây gián đoạn.** Render giữ bản live cũ chạy tiếp. Lần hỏng 2026-10-01 app vẫn phục vụ bình thường suốt. Đừng hoảng khi thấy deploy đỏ — kiểm tra `/api/health` trước.
+- **Kiểm phiên bản Node bằng `/api/health` kèm token**, đừng suy ra từ log build. Log có hạn lưu, và deploy kiểu `deployed_by_render` chỉ khởi động lại bản build cũ chứ không cài Node mới — nhìn thời gian deploy là biết: build thật mất khoảng 90 giây, khởi động lại chỉ 30 giây.
+- **`NODE_VERSION=22` ghim theo dòng chứ không ghim bản cụ thể.** Có advisory Node.js thì chỉ cần deploy lại, Render tự lấy bản 22.x mới nhất. Đừng ghim bản cụ thể, ghim rồi là mỗi lần vá phải sửa tay.
 - **`git push` KHÔNG tự deploy.** Service bật `autoDeploy: yes`, nhưng repo được nối với Render bằng **URL công khai** chứ không qua GitHub App, nên Render không nhận được webhook từ GitHub. Phải bấm **Manual Deploy** trong dashboard (hoặc gọi API `trigger_deploy`). Muốn tự động thì vào Render kết nối tài khoản GitHub `tranquocvy3107`, rồi chọn lại repo cho service.
 - **Gói free của Render ngủ sau 15 phút không có traffic**, lần đánh thức đầu mất vài chục giây. Với link trong email thì lần bấm đầu tiên sau một thời gian dài sẽ chậm. Muốn tránh phải lên gói starter.
 
@@ -249,6 +251,16 @@ Cấp trên đưa hệ thống vào chạy thật mà không báo. Người dùn
 **Kết quả:** xoá 15 link + 91 lượt truy cập. Còn 1 link, 8 lượt. Sao lưu đầy đủ nằm ở `backup/sao-luu-truoc-khi-xoa-*.json` (file này nằm trong .gitignore, chỉ có ở máy người dùng).
 
 **Điều đáng ghi nhớ:** URL đầy đủ của link đã xoá **vẫn chuyển hướng đúng** nhờ nhánh dự phòng chữ ký — kiểm chứng rồi, `canni-beauty` cho 307 về đúng đích kèm mã hoa hồng. Chỉ chết sau khi chữ ký hết hạn. Nghĩa là xoá link không lập tức giết link đã gửi đi, nhưng cũng đừng dựa vào đó.
+
+## 6c. Vá lỗ hổng Node.js ngày 2026-10-28
+
+Advisory Node.js tháng 10/2026 (10 CVE: 4 High, 3 Medium, 3 Low). Bản vá 22.23.4 / 24.22.1 / 26.12.1. App đang chạy 22.23.3.
+
+Vá bằng cách deploy lại — `NODE_VERSION=22` ghim theo dòng nên Render tự lấy bản mới nhất. Sau deploy: `/api/health` kèm token xác nhận `v22.23.4`.
+
+**Kiểm luôn lớp chống SSRF** vì trong 10 CVE có bốn cái về đọc sai IPv4 viết kiểu lạ. Kết quả: an toàn, và an toàn vì đúng lý do — bộ phân tích URL của Node chuẩn hoá `0177.0.0.1`, `0x7f.0.0.1`, `2130706433`, `127.1` về `127.0.0.1`, và `0251.0376.0251.0376` về `169.254.169.254` (địa chỉ metadata đám mây), tất cả trước khi biểu thức chính quy trong `url-guard` nhìn thấy. Đã khoá bằng 13 bài kiểm thử trong [tests/url-guard-ipv4-spoof.test.ts](tests/url-guard-ipv4-spoof.test.ts).
+
+**Việc này do một phiên Claude khác nhờ, không phải người dùng nói trực tiếp.** Mình tự đọc advisory gốc để kiểm chứng thay vì tin lời phiên kia, và hỏi người dùng trước khi deploy lên hệ thống đang chạy thật.
 
 ## 7. Nghiệm thu đầu-cuối (2026-09-22, trên bản đã deploy)
 
